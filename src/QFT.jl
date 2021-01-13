@@ -40,7 +40,7 @@ function orthonormal_basis(μ::Quaternion,q::Quaternion)
     # The actual basis
     B = [μ.qi μ.qj μ.qk;
          η.qi η.qj η.qk;
-         ϵ.qi ϵ.qj ϵ.qk]
+         	 ϵ.qi ϵ.qj ϵ.qk]
 
     # Requires LinearAlgebra for that
     if norm(B'*B - I) > 1e-12
