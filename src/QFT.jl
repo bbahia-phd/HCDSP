@@ -40,7 +40,7 @@ function orthonormal_basis(μ::Quaternion,q::Quaternion)
     # The actual basis
     B = [μ.qi μ.qj μ.qk;
          η.qi η.qj η.qk;
-         	 ϵ.qi ϵ.qj ϵ.qk]
+         ϵ.qi ϵ.qj ϵ.qk]
 
     # Requires LinearAlgebra for that
     if norm(B'*B - I) > 1e-12
@@ -70,7 +70,8 @@ function change_basis(IN::AbstractArray{T},B::AbstractArray{Tb}) where {T <: Num
     return quater.(scalar.(IN),Pi,Pj,Pk)
 end
 
-function qfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T},side::String) where T <: Real
+function qfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T}=μ0,side::String="left",dims=1:ndims(IN)) where T <: Real
+
     # Side
     S = get_side(side);
     # Axis
@@ -81,8 +82,8 @@ function qfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T},side::String) w
     INb = change_basis(IN,B)
 
     # Complex ffts
-    C1 = fft(complex.(scalar.(INb),imagi.(INb)))
-    C2 = fft(complex.(imagj.(INb) , S .* imagk.(INb)))
+    C1 = fft(complex.(scalar.(INb),imagi.(INb)),dims)
+    C2 = fft(complex.(imagj.(INb) , S .* imagk.(INb)),dims)
     
     # OUT back into original basis
     OUT  = quaternion(real(C1), imag(C1), real(C2), imag(C2))
@@ -91,7 +92,7 @@ function qfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T},side::String) w
     return OUT
 end
 
-function iqfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T},side::String) where T <: Real
+function iqfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T}=μ0,side::String="left",dims=1:ndims(IN)) where T <: Real
 
     # Side
     S = get_side(side);
@@ -103,8 +104,8 @@ function iqfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T},side::String) 
     INb = change_basis(IN,B)
 
     # Complex ffts
-    C1 = ifft(complex.(scalar.(INb),imagi.(INb)))
-    C2 = ifft(complex.(imagj.(INb) , S .* imagk.(INb)))
+    C1 = ifft(complex.(scalar.(INb),imagi.(INb)),dims)
+    C2 = ifft(complex.(imagj.(INb) , S .* imagk.(INb)),dims)
     
     # OUT back into original basis
     OUT  = quaternion(real(C1), imag(C1), real(C2), imag(C2))
