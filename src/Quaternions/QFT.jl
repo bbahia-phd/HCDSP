@@ -1,5 +1,10 @@
-export μ0, qfft, iqfft
+import FFTW: fft, ifft, fft!, ifft!
 
+export μ0, qi, qj, qk, qfft, iqfft, fft, ifft
+
+const qi = normalize(quater(1,0,0));
+const qj = normalize(quater(0,1,0));
+const qk = normalize(quater(0,0,1));
 const μ0 = quater(1,1,1) / sqrt(3)
 
 function get_side(side::String)
@@ -113,3 +118,10 @@ function iqfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T}=μ0,side::Stri
 
     return OUT
 end
+
+## Multiple dispatch ##
+fft(IN,μ,side,dims)  = qfft(IN,μ,side,dims)
+fft( IN::AbstractArray{Quaternion{T}},dims) where T = qfft(IN,qi,"left",dims)
+
+ifft(IN,μ,side,dims) = iqfft(IN,μ,side,dims)
+ifft( IN::AbstractArray{Quaternion{T}},dims) where T = iqfft(IN,qi,"left",dims)

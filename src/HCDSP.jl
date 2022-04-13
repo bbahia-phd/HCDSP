@@ -5,7 +5,7 @@ module HCDSP
 using Statistics, StatsBase, NaNMath
 using Distributed, DelimitedFiles
 using LinearAlgebra, FFTW
-using TSVD
+using TSVD, DSP
 using Random
 
 # Include quternions

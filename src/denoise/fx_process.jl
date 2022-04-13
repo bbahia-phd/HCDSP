@@ -65,3 +65,42 @@ function conj_symmetry!(IN)
     end
 end
 
+## Quaternion F-X Process ##
+
+function fx_process(IN::AbstractArray{Quaternion{T}}, dt::Real, fmin::Real, fmax::Real, Op::Function, args...) where {T}
+
+    # Padding
+    nin  = size(IN);
+    npad = (2 * nextpow(2, nin[1]), nin[2:end]...);
+    INF  = PadOp(IN,nin = nin, npad = npad, flag="fwd");
+
+    # Allocation
+     OUT = zero(IN);
+    OUTF = zero(INF);
+    
+    # Fourier in time
+    INF .= fft(INF,1)
+
+    # Freq range
+    ω_range = freq_indexes(fmin, fmax, dt, npad[1])
+
+    # Spatial indexes
+    indx = CartesianIndices( npad[2:end] )    
+
+    # Loop over freqs
+    @inbounds for iω in ω_range
+        # Filtering
+        OUTF[iω,indx] .= Op(INF[iω,indx], args...)
+    end
+
+
+    @inbounds for iω in npad[1]-ω_range[end]+2:npad[1]-ω_range[1]+1
+        # Filtering
+        OUTF[iω,indx] .= Op(INF[iω,indx], args...)
+    end
+
+    # Truncate
+    OUT .= PadOp( ifft(OUTF,1), nin = nin, npad = npad, flag="adj" );
+
+    return OUT
+end   
