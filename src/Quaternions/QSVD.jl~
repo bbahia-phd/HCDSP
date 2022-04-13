@@ -1,3 +1,5 @@
+import TSVD: tsvd
+
 function complex_adjoint(Q::AbstractArray{Quaternion{T}}) where T
 
     # Obtain symplex and perplex

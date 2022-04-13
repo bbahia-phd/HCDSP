@@ -2,7 +2,7 @@ cd(joinpath(homedir(),"projects"))
 pwd()
 
 using Pkg
-Pkg.activate("./dev/hcdsp/.")
+Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
 Pkg.status()
 
 using Revise
@@ -10,7 +10,7 @@ using Revise
 using FFTW
 using PyPlot
 using SeisMain, SeisPlot
-using HCDSP,SNR,IterativeMethods
+using HCDSP,IterativeMethods
 
 params_zx = (ot=0.0, dt=0.004, nt=500, ox1=0.0, dx1=10.0,
 nx1=100, ox2=0.0, dx2=10.0, nx2=1, ox3=0.0, dx3=10.0,
@@ -41,9 +41,9 @@ side = "left"
 
 Qf = qfft(Q,ax,side,1);
 
-clf();
-plot(imagk.(Qf[50,:]));gcf()
-
 qs = Qf[50,:];
 
 H = HankelOp(qs) # Adjoint operator A'(S'(X))
+
+U,S,V = tsvd(H,8);
+
