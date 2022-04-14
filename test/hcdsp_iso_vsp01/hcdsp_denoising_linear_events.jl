@@ -56,3 +56,21 @@ Rz = prediction_quality(drz,dzz)
 Qx = prediction_quality(imagi.(QQ),dzx)
 Qy = prediction_quality(imagj.(QQ),dzy)
 Qz = prediction_quality(imagk.(QQ),dzz)
+
+dqx = imagi.(QQ);
+dqy = imagj.(QQ);
+dqz = imagk.(QQ);
+
+# get slice j
+j = 20;
+
+figure("panel",figsize=(10,10));
+
+subplot(3,1,1);
+SeisPlotTX([dzx[:,:,j] dnx[:,:,j] drx[:,:,j] dqx[:,:,j]],fignum="panel",style="wiggles");
+
+subplot(3,1,2);
+SeisPlotTX([dzy[:,:,j] dny[:,:,j] dry[:,:,j] dqy[:,:,j]],fignum="panel",style="wiggles");
+
+subplot(3,1,3);
+SeisPlotTX([dzz[:,:,j] dnz[:,:,j] drz[:,:,j] dqz[:,:,j]],fignum="panel",style="wiggles");
