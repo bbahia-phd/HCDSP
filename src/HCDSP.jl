@@ -12,6 +12,7 @@ using Random
 include("./Quaternions/Fundamentals/Quaternions.jl")
 include("./Quaternions/QFT.jl")
 include("./Quaternions/QSVD.jl")
+include("./Quaternions/QQR.jl")
 
 # include SNR
 include("./noise/noise.jl")

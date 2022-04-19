@@ -1,5 +1,5 @@
 ## rQR-based rank-reduction
-function rqr(IN::AbstractArray{T},k::Int) where {T <: Number}
+function rqr(IN::AbstractArray{T},k::Int) where {T}
 
     # Dimensionality reduction
     n = size(IN);
@@ -11,7 +11,23 @@ function rqr(IN::AbstractArray{T},k::Int) where {T <: Number}
     Q = Q[:,1:k];
 
     # "Rank" reduction
-    OUT = Q*Q'*IN
+    return Q*Q'*IN
+end
+
+## rQR-based rank-reduction
+function rqr(IN::AbstractArray{Quaternion{T}},k::Int) where {T <: Real}
+
+    # Dimensionality reduction
+    n = size(IN);
+    Ω = rand(n[2],k);
+    P = IN*Ω;
+
+    # QR
+    Q,_ = qqr(P)
+    Q = Q[:,1:k];
+
+    # "Rank" reduction
+    return Q*Q'*IN
 end
 
 function rQROp(IN::AbstractArray{T}, k::Int) where {N,T}
@@ -20,7 +36,7 @@ function rQROp(IN::AbstractArray{T}, k::Int) where {N,T}
   
    # Hankelize
    H = HankelOp(IN);
-   
+
    # Rank reduction
    H .= rqr(H,k);
    
@@ -29,6 +45,3 @@ function rQROp(IN::AbstractArray{T}, k::Int) where {N,T}
    
    return OUT
 end
-
-
-

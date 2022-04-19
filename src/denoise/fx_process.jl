@@ -1,5 +1,7 @@
 function fx_process(IN::AbstractArray{T}, dt::Real, fmin::Real, fmax::Real, Op::Function, args...) where {T}
 
+    println("c fx")
+
     # Padding
     nin  = size(IN);
     npad = (2 * nextpow(2, nin[1]), nin[2:end]...);
@@ -71,7 +73,8 @@ function fx_process(IN::AbstractArray{Quaternion{T}}, dt::Real, fmin::Real, fmax
 
     # Padding
     nin  = size(IN);
-    npad = (2 * nextpow(2, nin[1]), nin[2:end]...);
+    nfft = 2 * nextpow(2, nin[1]);
+    npad = (nfft, nin[2:end]...);
     INF  = PadOp(IN,nin = nin, npad = npad, flag="fwd");
 
     # Allocation
@@ -94,7 +97,7 @@ function fx_process(IN::AbstractArray{Quaternion{T}}, dt::Real, fmin::Real, fmax
     end
 
 
-    @inbounds for iω in npad[1]-ω_range[end]+2:npad[1]-ω_range[1]+1
+    @inbounds for iω in nfft-ω_range[end]+2:nfft-ω_range[1]+1
         # Filtering
         OUTF[iω,indx] .= Op(INF[iω,indx], args...)
     end
