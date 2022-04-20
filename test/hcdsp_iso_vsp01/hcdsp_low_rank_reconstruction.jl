@@ -70,7 +70,6 @@ r1 = zeros(rmax,pmax,kmax);
 r2 = zeros(rmax,pmax,kmax);
 r3 = zeros(rmax,pmax,kmax);
 
-
 for k in 1:kmax
     kk = K[k]
 
@@ -79,7 +78,7 @@ for k in 1:kmax
 
         for r in 1:rmax
             dnx = SeisAddNoise(dzx, -2.0, db=true, L=3);
-            dnx = decimate_traces(dnx,perc);
+            dnx .= decimate_traces(dnx,perc);
             
             INF = complex.(PadOp(dnx,nin=nin,npad=npad,flag="fwd"));
             fft!(INF,1);
@@ -97,11 +96,28 @@ for k in 1:kmax
             r3[r,p,k] = quality(tmp,dc);
             #o3[:,:,kk] .= tmp;
         end       
+        @show [kk perc mean(r1[:,p,k],dims=1) mean(r2[:,p,k],dims=1) mean(r3[:,p,k],dims=1)]    
     end
-
-    @show [kk  mean(r1,dims=[1,2]) mean(r2,dims=[1,2]) mean(r3,dims=[1,2])]
-
 end
+
+using HDF5
+
+fname = joinpath(homedir(),"projects/HCDSP/hcdsp_low_rank_compare_reconstruction")
+fid = h5open(fname, "w")
+
+create_group(fid,"gains")
+fid["gains"]["svd"] = r1;
+fid["gains"]["rqr"] = r2;
+fid["gains"]["lanc"] = r3;
+
+close(fid)
+
+# Calls for different SSA-based reconstruction
+# dsvd = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,SVDSSAOp,(5))...);
+# dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,rQROp,(20))...);
+# dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,QRFSSAOp,(5))...);
+# dout = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,FSSAOp,(5))...);
+
 
 # # Average
 # r1r = vec(mean(r1,dims=1));
@@ -161,37 +177,3 @@ end
 # tight_layout();
 # gcf()
 
-# using HDF5
-
-# fname = "./hcdsp_low_rank_compare_denoising"
-# fid = h5open(fname, "cw")
-
-# create_group(fid,"gains")
-# fid["gains"]["svd"] = r1;
-# fid["gains"]["rqr"] = r2;
-# fid["gains"]["lanc"] = r3;
-
-# create_group(fid,"gains/stats/mean")
-# fid["gains/stats/mean"]["svd"]  = r1r
-# fid["gains/stats/mean"]["rqr"]  = r2r
-# fid["gains/stats/mean"]["lanc"] = r3r
-
-# create_group(fid,"gains/stats/std")
-# fid["gains/stats/std"]["svd"]  = std1
-# fid["gains/stats/std"]["rqr"]  = std2
-# fid["gains/stats/std"]["lanc"] = std3
-
-# create_group(fid,"data")
-# fid["data"]["clean"] = dzx
-# fid["data"]["noisy"] = dnx
-
-# close(fid)
-
-
-
-
-# Overall call for different SSA 
-# dsvd = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,SVDSSAOp,(5))...);
-# dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,rQROp,(20))...);
-# dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,QRFSSAOp,(5))...);
-# dout = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,FSSAOp,(5))...);
