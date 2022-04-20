@@ -1,7 +1,5 @@
 function fx_process(IN::AbstractArray{T}, dt::Real, fmin::Real, fmax::Real, Op::Function, args...) where {T}
 
-    println("c fx")
-
     # Padding
     nin  = size(IN);
     npad = (2 * nextpow(2, nin[1]), nin[2:end]...);

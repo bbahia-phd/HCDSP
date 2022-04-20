@@ -96,19 +96,10 @@ function SamplingOp(IN::AbstractArray{T,N}; ε::Real = 1e-10) where {T <: Number
     Γ = zeros(Int,nin)
 
     # Safe-guard for 1D - Not sure if this is the best to do
-    if N == 1
-        @inbounds for i in eachindex(IN)
-            σ = sqrt( abs( IN[i] )  )
-            if σ > ε
-                Γ[i] .= 1
-            end
-        end
-    else
-        @inbounds for i in indx
-            σ = sum( abs.(IN[:,i]).^2   )
-            if σ > ε
-                Γ[:,i] .= 1
-            end
+    @inbounds for i in eachindex(IN)
+        σ = sqrt( abs( IN[i] )  )
+        if σ > ε
+            Γ[i] = 1
         end
     end
 

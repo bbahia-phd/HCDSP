@@ -1,4 +1,4 @@
-## rQR-based rank-reduction
+## Real or Complex rQR-based rank-reduction
 function rqr(IN::AbstractArray{T},k::Int) where {T}
 
     # Dimensionality reduction
@@ -14,7 +14,7 @@ function rqr(IN::AbstractArray{T},k::Int) where {T}
     return Q*Q'*IN
 end
 
-## rQR-based rank-reduction
+## Quaternion rQR-based rank-reduction
 function rqr(IN::AbstractArray{Quaternion{T}},k::Int) where {T <: Real}
 
     # Dimensionality reduction

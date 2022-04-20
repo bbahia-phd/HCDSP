@@ -7,11 +7,13 @@ export fx_process,
     BFGDRSSAOp,
     freq_indexes,
     conj_symmetry!,
-    NUCSSAOp
+    NUCSSAOp,
+    LANCSSAOp
 
 include("fx_process.jl")
 include("SVDSSAOp.jl")
 include("rQROp.jl")
 include("BFGDSSAOp.jl")
 include("NUCSSAOp.jl")
+include("LANCSSAOp.jl")
 #include("FSSAOp.jl")

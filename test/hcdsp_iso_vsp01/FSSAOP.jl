@@ -21,10 +21,10 @@ function FSSAOp(IN,k)
 
     # do fast anti-diagonal averaging using rank-1 approx
     for i in 1:k
-        out += anti_diagonal_summation(Ub[:,i],V[:,i],L,K);
+        out += HCDSP.anti_diagonal_summation(Ub[:,i],V[:,i],L,K);
     end
 
-    count = HCDSP.count_copy_times([40,40])
+    count = HCDSP.count_copy_times([100,100])
 
     return out ./ count
 end

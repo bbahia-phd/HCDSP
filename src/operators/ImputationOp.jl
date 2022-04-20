@@ -1,3 +1,43 @@
+function imputation_op(inp::AbstractArray{Ti,N},
+                       smp::Union{AbstractArray{Ts,N},Function,Nothing},
+                       Op::Function, args...;
+                       iter = 10,
+                       α = range(1,stop=0,length=iter),
+                       ε=1e-16) where {Ti, Ts,N}
+
+
+    # allocate
+    old,new,tmp = copy(inp),zero(inp),zero(inp);
+
+    if smp == Nothing
+        smp = GetSamplingOp(inp)
+    end
+
+    # safe-guard scalar α
+    α = α .* ones(Ti,iter);
+
+    # iterative reinsertion
+    for i in 1:iter
+
+        # apply operator
+        tmp .= Op(old,args...)
+
+        # reinsert
+        new .= α[i] .* inp .+ (one(Ti) .- α[i] .* smp) .* tmp
+
+        # Convergence
+        if norm(new .- old,2)^2/norm(new,2)^2 < ε
+            break;
+        end
+        
+        old .= copy(new);
+    end
+
+    # old or new
+    return new
+
+end
+
 function ImputationOp(IN::Array{Complex{Float64}},PARAM::Dict{String,Any})
     
     # Prelim
