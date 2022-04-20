@@ -188,12 +188,12 @@ function QRFSSAOp(IN::AbstractArray{T},k) where T
 
         t = mbh_multiply(IN,q,flag="adj");
 
-        OUT .+= anti_diagonal_summation(q,t,L,K);        
+        OUT .+= HCDSP.anti_diagonal_summation(q,t,L,K);        
     end
 
     count = HCDSP.count_copy_times([dims[1],dims[2]])
 
-    OUT = OUT ./ count;
+    OUT .= OUT ./ count;
 
     return OUT
 

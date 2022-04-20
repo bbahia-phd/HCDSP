@@ -19,6 +19,8 @@ function imputation_op(inp::AbstractArray{Ti,N},
     # iterative reinsertion
     for i in 1:iter
 
+        @show i
+
         # apply operator
         tmp .= Op(old,args...)
 

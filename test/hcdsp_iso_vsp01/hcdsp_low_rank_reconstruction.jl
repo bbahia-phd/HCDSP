@@ -134,6 +134,7 @@ using Revise
 using FFTW
 using HCDSP
 using PyPlot
+using LinearAlgebra
 using StatsBase,Statistics
 using SeisMain, SeisPlot
 
@@ -173,5 +174,6 @@ imp_rqr(d,k) = HCDSP.imputation_op(d,T,rQR,(k))
 imp_ssa(d,k) = HCDSP.imputation_op(d,T,LANCSSAOp,(k))
 
 dsvd = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,SVDSSAOp,(5))...);
-dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,rQROp,(8))...);
+dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,rQROp,(20))...);
+dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,QRFSSAOp,(5))...);
 dout = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,FSSAOp,(5))...);
