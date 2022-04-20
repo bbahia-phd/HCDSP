@@ -60,11 +60,10 @@ function QFSSAOp(IN,k)
     return out ./ count
 end
 
-afwd(IN,x) = vcat(
-    qmbh_multiply(IN,x,flag="fwd"),
-    qmbh_multiply(invi.(IN),x,flag="fwd"),
-    qmbh_multiply(invj.(IN),x,flag="fwd"),
-    qmbh_multiply(invk.(IN),x,flag="fwd") )
+afwd(IN,x) = vcat( qmbh_multiply(IN,x,flag="fwd"),
+                   qmbh_multiply(invi.(IN),x,flag="fwd"),
+                   qmbh_multiply(invj.(IN),x,flag="fwd"),
+                   qmbh_multiply(invk.(IN),x,flag="fwd") )
 
 
 function aadj(IN,x)
