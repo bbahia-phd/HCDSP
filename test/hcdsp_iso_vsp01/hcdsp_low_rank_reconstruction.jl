@@ -1,51 +1,6 @@
 cd(joinpath(homedir(),"projects"))
 pwd()
 
-<<<<<<< HEAD
-using Pkg
-Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
-Pkg.status()
-
-using Revise
-
-using FFTW
-using HCDSP
-using PyPlot
-using LinearAlgebra
-using StatsBase,Statistics
-using SeisMain, SeisPlot
-
-params_zx = (ot=0.0, dt=0.004, nt=100, ox1=0.0, dx1=10.0,
-            nx1=100, ox2=0.0, dx2=10.0, nx2=100, ox3=0.0, dx3=10.0,
-            nx3=1, ox4=0.0, dx4=10.0, nx4=1, tau=[0.1,0.25],
-            p1=[0.0001,-0.0003],p2=[0.,0.],p3=[0.,0],p4=[0.,0.],
-            amp=[1.0,-1.0], f0=20.0)
-dzx = SeisLinearEvents(; params_zx...);
-dnx = SeisAddNoise(dzx, -2.0, db=true, L=3);
-dnx = decimate_traces(dnx,40);
-
-nin = size(dzx); npad = nin;
-
-INC = complex.(PadOp(dzx,nin=nin,npad=npad,flag="fwd"));
-INF = complex.(PadOp(dnx,nin=nin,npad=npad,flag="fwd"));
-
-fft!(INC,1);
-fft!(INF,1);
-
-fmin = 0.0; fmax = 50.0; dt = 0.004;
-
-# Freq range
-ω_range = freq_indexes(fmin, fmax, dt, npad[1])
-
-# Spatial indexes
-indx = CartesianIndices( npad[2:end] ) ;
-
-iω = 15;
-
-=======
-cd(joinpath(homedir(),"projects"))
-pwd()
-
 using Pkg
 Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
 Pkg.status()
@@ -111,20 +66,14 @@ tmp = zeros(eltype(dc),size(dc)...);
 
 rmax = 20;
 
-<<<<<<< HEAD
 r1 = zeros(rmax,pmax,kmax);
 r2 = zeros(rmax,pmax,kmax);
 r3 = zeros(rmax,pmax,kmax);
-=======
-r1 = zeros(rmax,kmax);
-r2 = zeros(rmax,kmax);
-r3 = zeros(rmax,kmax);
->>>>>>> c04a2d06f8681a89d3ab66120b0c8e164261524b
+
 
 for k in 1:kmax
     kk = K[k]
 
-<<<<<<< HEAD
     for p in 1:pmax
         perc = percs[p]
 
@@ -146,36 +95,12 @@ for k in 1:kmax
     
             tmp .= imp_lan(d,kk);
             r3[r,p,k] = quality(tmp,dc);
-=======
-    for perc in percs
-        for r in 1:rmax
-            dnx = SeisAddNoise(dzx, -2.0, db=true, L=3);
-            INF = complex.(PadOp(dnx,nin=nin,npad=npad,flag="fwd"));
-            fft!(INF,1);
-    
-            d  = copy(INF[iω,indx]);
-    
-            tmp .= imp_ssa(d,kk);
-            r1[r,k] = quality(tmp,dc);
-            #o1[:,:,kk] .= tmp;
-    
-            tmp .= imp_rqr(d,kk);
-            r2[r,k] = quality(tmp,dc);
-            #o2[:,:,kk] .= tmp;
-    
-            tmp .= imp_lan(d,kk);
-            r3[r,k] = quality(tmp,dc);
->>>>>>> c04a2d06f8681a89d3ab66120b0c8e164261524b
             #o3[:,:,kk] .= tmp;
         end       
     end
 
-<<<<<<< HEAD
     @show [kk  mean(r1,dims=[1,2]) mean(r2,dims=[1,2]) mean(r3,dims=[1,2])]
-=======
 
-    @show [kk  mean(r1[:,k],dims=1) mean(r2[:,k],dims=1) mean(r3[:,k],dims=1)]
->>>>>>> c04a2d06f8681a89d3ab66120b0c8e164261524b
 end
 
 # # Average
