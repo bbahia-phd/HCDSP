@@ -1,14 +1,19 @@
 export fx_process,
-    SVDSSAOp,
-    rank_reduction,
-    rQROp,
-    rqr,
-    BFGDSSAOp,
-    BFGDRSSAOp,
-    freq_indexes,
-    conj_symmetry!,
-    NUCSSAOp,
-    LANCSSAOp
+        SVDSSAOp,
+        rank_reduction,
+        rQROp,
+        rqr,
+        BFGDSSAOp,
+        BFGDRSSAOp,
+        freq_indexes,
+        conj_symmetry!,
+        NUCSSAOp,
+        LANCSSAOp,
+        fast_ssa_lanc,
+        fast_ssa_qr,
+        fast_qssa_lanc,
+        fast_aqssa,lanc,
+        fast_qssa_qr
 
 include("fx_process.jl")
 include("SVDSSAOp.jl")
@@ -16,4 +21,4 @@ include("rQROp.jl")
 include("BFGDSSAOp.jl")
 include("NUCSSAOp.jl")
 include("LANCSSAOp.jl")
-#include("FSSAOp.jl")
+include("FSSAOp.jl")

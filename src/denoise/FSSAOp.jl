@@ -1,56 +1,33 @@
-cd(joinpath(homedir(),"projects"))
-pwd()
+import Base: vec
 
-using Pkg
-Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
-Pkg.status()
-
-using Revise
-
-using FFTW
-using HCDSP
-using PyPlot
-using SeisMain, SeisPlot
-
-params_zx = (ot=0.0, dt=0.004, nt=100, ox1=0.0, dx1=10.0,
-            nx1=20, ox2=0.0, dx2=20.0, nx2=20, ox3=0.0, dx3=10.0,
-            nx3=20, ox4=0.0, dx4=10.0, nx4=20, tau=[0.1,0.25],
-            p1=[0.0001,-0.0003],p2=[0.,0.],p3=[0.,0],p4=[0.,0.],
-            amp=[1.0,-1.0], f0=20.0)
-dzx = SeisLinearEvents(; params_zx...);
-dnx = SeisAddNoise(dzx, -1.5, db=true, L=5);
-
-nin = size(dnx); npad = nextpow.(2,nin);
-
-INF = complex.(PadOp(dnx,nin=nin,npad=npad,flag="fwd"));
-OUTF = zero(INF);
-
-fft!(INF,1);
-
-fmin = 0.0; fmax = 100.0; dt = 0.004; k = 10;
-
-# Freq range
-ω_range = freq_indexes(fmin, fmax, dt, npad[1])
-
-# Spatial indexes
-indx = CartesianIndices( npad[2:end] ) ;
-
-for iω in ω_range
-    OUTF[iω,indx] .= Op(INF[iω,indx],k...)
+# Function to vectorize tuples
+function vec(tuple::NTuple{N}) where N
+    out = zeros(Int,length(tuple))
+    for i in eachindex(out)
+    out[i] = tuple[i]
+    end
+    return out
 end
 
-# Symmetries and ifft
-conj_symmetry!(OUTF)
+#### Complex-valued Fast SSA
 
-# Truncate
-OUT = PadOp( real( ifft!(OUTF,1) ), nin = nin, npad = npad, flag="adj" );
+## Lanczos-bsaed
+"""
 
-j = 10;
-close("all"); clf();
-SeisPlotTX([dzx[:,:,j,j,j] dnx[:,:,j,j,j] OUT[:,:,j,j,j]],fignum="panel",style="wiggles",wbox=10,hbox=5);gcf()
+    OUT = fast_ssa_lanc(IN,k)
 
-#####
-function Op(IN,k)
+Computes the rank-k approximation of a frequency sclice via a Lanczos-based SSA.
+
+# Arguments
+-`IN::AbstractArray{T}`: Input frequency slice
+-`k::Int`: Desired rank
+
+# Expanded help
+
+The implementation uses fast matrix-vector products based on FFTs.
+
+"""
+function fast_ssa_lanc(IN,k)
 
     # OUT
     out = zero(IN)
@@ -58,27 +35,253 @@ function Op(IN,k)
     # dimensions of array
     dims = size(IN)    
 
-    # compute L, K
-    L1 = floor(Int64,dims[1]/2)+1; K1 = dims[1]-L1+1
-    L2 = floor(Int64,dims[2]/2)+1; K2 = dims[2]-L2+1
-    L3 = floor(Int64,dims[3]/2)+1; K3 = dims[3]-L3+1
-    L4 = floor(Int64,dims[4]/2)+1; K4 = dims[4]-L4+1
+    # Matrix dimensions
+    L = floor.(Int64, dims ./ 2) .+ 1;
+    K = dims .- L .+ 1;
 
     fwd(x) = mbh_multiply(IN,x,flag="fwd");
     adj(x) = mbh_multiply(IN,x,flag="adj");
 
     A(x,i;kwargs...) = i == 1 ? fwd(x) : adj(x)
 
-    U, Bk, V = lanbpro(A,k,m=L1*L2*L3*L4,n=K1*K2*K3*K4)
+    U, Bk, V = HCDSP.lanbpro(A,k,m=prod(L),n=prod(K))
 
     Ub = U*Bk;
 
     # do fast anti-diagonal averaging using rank-1 approx
     for i in 1:k
-        out += anti_diagonal_summation2(Ub[:,i],V[:,i],(L1,L2,L3,L4),(K1,K2,K3,K4));
+        out += anti_diagonal_summation(Ub[:,i],V[:,i],L,K);
     end
 
-    count = HCDSP.count_copy_times([32,32,32,32])
+    count = count_copy_times(vec(dims))
 
     return out ./ count
+end
+
+"""
+
+    OUT = fast_ssa_qr(IN,k)
+
+Computes the rank-k approximation of IN via a QR-based SSA.
+
+# Arguments
+-`IN::AbstractArray{T}`: Input frequency slice
+-`k::Int`: Desired random projections.
+
+# Expanded help
+
+The implementation uses fast matrix-vector products based on FFTs.
+"""
+function fast_ssa_qr(IN::AbstractArray{T},k) where T
+
+    # dimensions of array
+    dims = size(IN);
+
+    # OUT
+    OUT = zero(IN)
+
+    # Matrix dimensions
+    L = floor.(Int64, dims ./ 2) .+ 1;
+    K = dims .- L .+ 1;
+
+    # Random matrix for projection
+    Ω = rand(prod(K),k);
+
+    # projection
+    P = zeros(T,(prod(L),k))
+    for i = 1:k
+        P[:,i] .= mbh_multiply(IN,Ω[:,i],flag="fwd")
+    end
+
+    # Quaternion QR
+    Qr,_ = qr(P)
+
+    for i in 1:k
+
+        q = copy(Qr[:,i]);
+
+        t = mbh_multiply(IN,q,flag="adj");
+
+        OUT .+= anti_diagonal_summation(q,t,L,K);        
+    end
+
+    count = count_copy_times(vec(dims))
+
+    OUT .= OUT ./ count;
+
+    return OUT
+
+end
+
+
+#### Quaternion-valued Fast SSA (QSSA)
+## Lanczos-bsaed
+"""
+
+    OUT = fast_qssa_lanc(IN,k)
+
+Computes the quaternionic rank-k approximation of IN via a Lanczos-based QSSA.
+
+# Arguments
+-`IN::AbstractArray{T}`: Input frequency slice
+-`k::Int`: Desired rank
+
+# Expanded help
+
+The implementation uses fast matrix-vector products based on QFTs.
+
+"""
+function fast_qssa_lanc(IN,k)
+
+    # OUT
+    out = zero(IN)
+
+    # dimensions of array
+    dims = size(IN)    
+
+    # Matrix dimensions
+    L = floor.(Int64, dims ./ 2) .+ 1;
+    K = dims .- L .+ 1;
+
+    fwd(x) = qmbh_multiply(IN,x,flag="fwd");
+    adj(x) = qmbh_multiply(IN,x,flag="adj");
+
+    A(x,i;kwargs...) = i == 1 ? fwd(x) : adj(x)
+
+    U, Bk, V = lanbpro(A,k,m=prod(L),n=prod(K),qflag=true)
+
+    Ub = U*Bk;
+
+    # do fast anti-diagonal averaging using rank-1 approx
+    for i in 1:k
+        out += anti_diagonal_summation(Ub[:,i],V[:,i],L,K);
+    end
+
+    count = count_copy_times(vec(dims))
+
+    return out ./ count
+end
+
+afwd(IN,x) = vcat( qmbh_multiply(IN,x,flag="fwd"),
+                   qmbh_multiply(invi.(IN),x,flag="fwd"),
+                   qmbh_multiply(invj.(IN),x,flag="fwd"),
+                   qmbh_multiply(invk.(IN),x,flag="fwd") )
+
+
+function aadj(IN,x)
+    l = floor(Int64,length(x)/4)
+    ind1 = 1:l;     xo = @view x[ind1];
+    ind2 = l+1:2l;  xi = @view x[ind2];
+    ind3 = 2l+1:3l; xj = @view x[ind3]; 
+    ind4 = 3l+1:4l; xk = @view x[ind4];
+
+    out = qmbh_multiply(      IN, xo, flag="adj") .+ 
+          qmbh_multiply(invi.(IN),xi, flag="adj") .+
+          qmbh_multiply(invj.(IN),xj, flag="adj") .+
+          qmbh_multiply(invk.(IN),xk, flag="adj")
+
+    return out     
+end
+
+"""
+
+    OUT = fast_aqssa_lanc(IN,k)
+
+Computes the augmented quaternionic rank-k approximation of IN via a Lanczos-based QSSA.
+
+# Arguments
+-`IN::AbstractArray{T}`: Input frequency slice
+-`k::Int`: Desired rank.
+
+# Expanded help
+
+The implementation uses fast matrix-vector products based on QFTs.
+"""
+function fast_aqssa_lanc(IN,k)
+
+    # dimensions of array
+    dims_in = size(IN);
+    dims_pad = nextpow.(2,dims_in);
+
+    # PAD IN
+    INP = PadOp(IN,nin=dims_in,npad=dims_pad,flag="fwd");
+
+    # OUT
+    OUTP = zero(INP)
+
+    # Matrix dimensions
+    L = floor.(Int64, dims_pad ./ 2) .+ 1;
+    K = dims_pad .- L .+ 1;
+
+    A(x,i;kwargs...) = i == 1 ? afwd(INP,x) : aadj(INP,x)
+
+    U, Bk, V = lanbpro(A,k,m=4prod(L),n=prod(K),qflag=true)
+
+    Ub = U*Bk;
+
+    # do fast anti-diagonal averaging using rank-1 approx
+    for i in 1:k
+        OUTP += anti_diagonal_summation(Ub[1:prod(L),i],V[:,i],L,K);
+    end
+
+    count = count_copy_times(vec(dims))
+
+    OUTP = OUTP ./ count;
+
+    return PadOp(OUTP,nin=dims_in,npad=dims_pad,flag="adj");
+end
+
+"""
+
+    OUT = fast_qssa_qr(IN,k)
+
+Computes the quaternionic rank-k approximation of IN via a QR-based QSSA.
+
+# Arguments
+-`IN::AbstractArray{T}`: Input frequency slice
+-`k::Int`: Desired random projections.
+
+# Expanded help
+
+The implementation uses fast matrix-vector products based on QFTs.
+"""
+function fast_qssa_qr(IN::AbstractArray{Quaternion{T}},k) where T
+
+    # dimensions of array
+    dims = size(IN);
+
+    # OUT
+    OUT = zero(IN)
+
+    # Matrix dimensions
+    L = floor.(Int64, dims ./ 2) .+ 1;
+    K = dims .- L .+ 1;
+
+    # Random matrix for projection
+    Ω = Quaternion.(rand(prod(K),k),rand(prod(K),k),rand(prod(K),k));
+
+    # projection
+    P = zerosq((prod(L),k))
+    for i = 1:k
+        P[:,i] .= qmbh_multiply(IN,Ω[:,i],flag="fwd")
+    end
+
+    # Quaternion QR
+    Qr,_ = qr(P)
+
+    for i in 1:k
+
+        q = copy(Qr[:,i]);
+
+        t = qmbh_multiply(IN,q,flag="adj");
+
+        OUT .+= anti_diagonal_summation(q,t,L,K);        
+    end
+
+    count = count_copy_times(vec(dims))
+
+    OUT = OUT ./ count;
+
+    return OUT
+
 end

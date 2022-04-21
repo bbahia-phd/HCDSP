@@ -143,12 +143,7 @@ function BFGDSSAOp(IN::AbstractArray{T,M},
     U0,V0,η = bfgd_init(AOp,HOp,IN0,prod(L),prod(K),k; init=init)
 
     # Call bfgd for IN0
-    Hk,_ = bfgd!(AOp,
-                 HOp,
-                 IN0,
-                 U0,
-                 V0,
-                 η;
+    Hk,_ = bfgd!(AOp, HOp, IN0, U0, V0, η;
                  λ = λ, maxIter = maxIter,
                  verbose=false, tol=1e-5)
     

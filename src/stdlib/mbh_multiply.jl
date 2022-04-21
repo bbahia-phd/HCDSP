@@ -527,7 +527,7 @@ function anti_diagonal_summation(u::Vector{Tv},
     N = L .+ K .- 1;
 
     # Pad arrays
-    u_hat = PadOp(reshape(u,L),nin=L,npad=N,flag="fwd");
+    u_hat = PadOp(reshape(u,L),      nin=L,npad=N,flag="fwd");
     v_hat = PadOp(reshape(conj(v),K),nin=K,npad=N,flag="fwd");
 
     # Fourier
