@@ -174,18 +174,23 @@ end
 
 using HDF5
 
-fname = "./hcdsp_qssa_compare_denoising"
-fid = h5open(fname, "w")
+fname = joinpath(homedir(),"projects/HCDSP/data/hcdsp_qssa_compare_denoising")
+fid = h5open(fname, "cw")
 
 create_group(fid,"gains")
 fid["gains"]["svd"] = r1;
 fid["gains"]["rqr"] = r2;
 fid["gains"]["lanc"] = r3;
 
-# close(fid)
+close(fid)
 
 #=
-# Average
+r1 = h5read(fname, "gains/svd");
+r2 = h5read(fname, "gains/rqr");
+r3 = h5read(fname, "gains/lanc");
+
+using StatsBase
+
 r1r = vec(mean(r1,dims=1));
 r2r = vec(mean(r2,dims=1));
 r3r = vec(mean(r3,dims=1));
