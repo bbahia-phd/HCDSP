@@ -42,13 +42,11 @@ indx = CartesianIndices( npad[2:end] ) ;
 iω = 15;
 
 dc = copy(INC[iω,indx]);
-dn = copy(INF[iω,indx]);
-T = SamplingOp(dn);
 
 # These act on a frequency slice d
-imp_ssa(d,k) = HCDSP.imputation_op(d,T,SVDSSAOp,(k))
-imp_rqr(d,k) = HCDSP.imputation_op(d,T,rQROp,(k))
-imp_lan(d,k) = HCDSP.imputation_op(d,T,LANCSSAOp,(k))
+imp_ssa(d,T,k) = HCDSP.imputation_op(d,T,SVDSSAOp,(k))
+imp_rqr(d,T,k) = HCDSP.imputation_op(d,T,rQROp,(k))
+imp_lan(d,T,k) = HCDSP.imputation_op(d,T,LANCSSAOp,(k))
 
 # ranks to test
 K = 1:2:50;
@@ -83,16 +81,18 @@ for k in 1:kmax
             INF = complex.(PadOp(dnx,nin=nin,npad=npad,flag="fwd"));
             fft!(INF,1);
             d  = copy(INF[iω,indx]);
-    
-            tmp .= imp_ssa(d,kk);
+
+            T = SamplingOp(d);
+
+            tmp .= imp_ssa(d,T,kk);
             r1[r,p,k] = quality(tmp,dc);
             #o1[:,:,kk] .= tmp;
     
-            tmp .= imp_rqr(d,kk);
+            tmp .= imp_rqr(d,T,kk);
             r2[r,p,k] = quality(tmp,dc);
             #o2[:,:,kk] .= tmp;
     
-            tmp .= imp_lan(d,kk);
+            tmp .= imp_lan(d,T,kk);
             r3[r,p,k] = quality(tmp,dc);
             #o3[:,:,kk] .= tmp;
         end       

@@ -175,7 +175,7 @@ end
 using HDF5
 
 fname = joinpath(homedir(),"projects/HCDSP/data/hcdsp_qssa_compare_denoising")
-fid = h5open(fname, "cw")
+fid = h5open(fname, "w")
 
 create_group(fid,"gains")
 fid["gains"]["svd"]  = r1;

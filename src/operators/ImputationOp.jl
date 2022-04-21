@@ -3,7 +3,7 @@ function imputation_op(inp::AbstractArray{Ti,N},
                        Op::Function, args...;
                        iter = 10,
                        α = range(1,stop=0,length=iter),
-                       ε=1e-16) where {Ti, Ts,N}
+                       ε=1e-16) where {Ti,Ts,N}
 
 
     # allocate
