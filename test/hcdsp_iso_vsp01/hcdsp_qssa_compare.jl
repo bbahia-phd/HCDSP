@@ -126,7 +126,7 @@ K = 1:2:50;
 kmax = length(K);
 
 # Max nubmer of realizations
-rmax = 10;
+rmax = 20;
 
 # a temp array
 tmp = zeros(eltype(dc),size(dc)...);
@@ -178,8 +178,8 @@ fname = joinpath(homedir(),"projects/HCDSP/data/hcdsp_qssa_compare_denoising")
 fid = h5open(fname, "cw")
 
 create_group(fid,"gains")
-fid["gains"]["svd"] = r1;
-fid["gains"]["rqr"] = r2;
+fid["gains"]["svd"]  = r1;
+fid["gains"]["rqr"]  = r2;
 fid["gains"]["lanc"] = r3;
 
 close(fid)
