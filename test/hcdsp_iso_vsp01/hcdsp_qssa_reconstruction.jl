@@ -71,7 +71,7 @@ pmax = length(percs);
 tmp = zeros(eltype(dc),size(dc)...);
 
 # number of realizations
-rmax = 10;
+rmax = 20;
 
 r1 = zeros(rmax,pmax,kmax);
 r2 = zeros(rmax,pmax,kmax);
@@ -129,6 +129,10 @@ fid["gains"]["rqr"] = r2;
 fid["gains"]["lanc"] = r3;
 
 close(fid)
+
+#r1 = h5read(fname, "gains/svd")
+#r2 = h5read(fname, "gains/rqr")
+#r3 = h5read(fname, "gains/lanc")
 
 # Calls for different SSA-based reconstruction
 # dsvd = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,SVDSSAOp,(5))...);
