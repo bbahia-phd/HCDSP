@@ -137,7 +137,8 @@ close(fid)
 # dout = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,FSSAOp,(5))...);
 
 # # Average
-# r1r = vec(mean(r1,dims=1));
+#
+# r1r =  mean(r1,dims=1)
 # r2r = vec(mean(r2,dims=1));
 # r3r = vec(mean(r3,dims=1));
 
