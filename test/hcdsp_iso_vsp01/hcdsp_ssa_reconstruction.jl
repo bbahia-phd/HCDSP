@@ -15,7 +15,7 @@ using StatsBase,Statistics
 using SeisMain, SeisPlot
 
 params_zx = (ot=0.0, dt=0.004, nt=100, ox1=0.0, dx1=10.0,
-            nx1=100, ox2=0.0, dx2=10.0, nx2=100, ox3=0.0, dx3=10.0,
+            nx1=40, ox2=0.0, dx2=10.0, nx2=40, ox3=0.0, dx3=10.0,
             nx3=1, ox4=0.0, dx4=10.0, nx4=1, tau=[0.1,0.25],
             p1=[0.0001,-0.0003],p2=[0.,0.],p3=[0.,0],p4=[0.,0.],
             amp=[1.0,-1.0], f0=20.0)
@@ -102,7 +102,7 @@ end
 
 using HDF5
 
-fname = joinpath(homedir(),"projects/HCDSP/hcdsp_low_rank_compare_reconstruction")
+fname = joinpath(homedir(),"projects/HCDSP/hcdsp_ssa_reconstruction.h5")
 fid = h5open(fname, "w")
 
 create_group(fid,"gains")
