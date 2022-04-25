@@ -40,7 +40,7 @@ dnz = SeisAddNoise(dzz, 3.0, db=true, L=9);
 Q = quaternion(dnx,dny,dnz);
 
 # Quaternion denoising
-QQ = fx_process(Q, 0.004, 0, 100, SVDSSAOp, (2));
+QQ = fx_process(Q, 0.004, 0, 100, SVDSSAOp, (4));
 
 # Component-wise denoising
 drx = fx_process(dnx, 0.004, 0, 100, SVDSSAOp, (2));
@@ -49,13 +49,13 @@ drz = fx_process(dnz, 0.004, 0, 100, SVDSSAOp, (2));
 
 # prediction_quality
 
-Rx = prediction_quality(drx,dzx)
-Ry = prediction_quality(dry,dzy)
-Rz = prediction_quality(drz,dzz)
+Rx = quality(drx,dzx)
+Ry = quality(dry,dzy)
+Rz = quality(drz,dzz)
 
-Qx = prediction_quality(imagi.(QQ),dzx)
-Qy = prediction_quality(imagj.(QQ),dzy)
-Qz = prediction_quality(imagk.(QQ),dzz)
+Qx = quality(imagi.(QQ),dzx)
+Qy = quality(imagj.(QQ),dzy)
+Qz = quality(imagk.(QQ),dzz)
 
 dqx = imagi.(QQ);
 dqy = imagj.(QQ);
@@ -67,10 +67,12 @@ j = 20;
 figure("panel",figsize=(10,10));
 
 subplot(3,1,1);
-SeisPlotTX([dzx[:,:,j] dnx[:,:,j] drx[:,:,j] dqx[:,:,j]],fignum="panel",style="wiggles");
+SeisPlotTX([dzx[:,:,j] dnx[:,:,j] drx[:,:,j] dqx[:,:,j]],fignum="panel",style="overlay");
 
 subplot(3,1,2);
-SeisPlotTX([dzy[:,:,j] dny[:,:,j] dry[:,:,j] dqy[:,:,j]],fignum="panel",style="wiggles");
+SeisPlotTX([dzy[:,:,j] dny[:,:,j] dry[:,:,j] dqy[:,:,j]],fignum="panel",style="overlay");
 
 subplot(3,1,3);
-SeisPlotTX([dzz[:,:,j] dnz[:,:,j] drz[:,:,j] dqz[:,:,j]],fignum="panel",style="wiggles");
+SeisPlotTX([dzz[:,:,j] dnz[:,:,j] drz[:,:,j] dqz[:,:,j]],fignum="panel",style="overlay");
+
+gcf()

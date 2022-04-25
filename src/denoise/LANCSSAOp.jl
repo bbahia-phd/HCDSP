@@ -4,7 +4,7 @@ function LANCSSAOp(IN,k)
     H = HankelOp(IN);
     
     # Rank reduction
-    U, Bk, V = HCDSP.lanbpro(H,k)
+    U,_,_ = HCDSP.lanbpro(H,k)
     
     # Averaging
     OUT = AveragingOp(U*U'*H,size(IN))

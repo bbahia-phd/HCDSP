@@ -16,9 +16,11 @@ export read_write,
         hankel_matrix,
         build_hankel_matrix,
         mbh_multiply,
+        qmbh_multiply,
         hankel_multiplication,
-        lanbpro
-
+        lanbpro,
+        anti_diagonal_summation,
+        anti_diagonal_summation_slow        
 
 include("puck.jl")
 include("ricker.jl")
@@ -30,4 +32,5 @@ include("circulant.jl")
 include("toeplitz.jl")
 include("hankel.jl")
 include("mbh_multiply.jl")
+include("qmbh_multiply.jl")
 include("lanczos.jl")
