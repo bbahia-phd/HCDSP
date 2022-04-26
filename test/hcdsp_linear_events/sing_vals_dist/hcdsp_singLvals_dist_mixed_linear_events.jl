@@ -80,12 +80,13 @@ dnz = SeisAddNoise(dzz,  1.0, db=true, L=3);
 # Quaternion denoising
 Q = quaternion(dnx,dny,dnz);
 
-dt = 0.004; fmin = 0.0; fmax = 50; k = 3; # best trial-and-error
+dt = 0.004; fmin = 0.0; fmax = 50; k = 6; # best trial-and-error
 
-QQ = fx_process(Q, dt, fmin, fmax, SVDSSAOp,(2k)...);
+QQ = fx_process(Q, dt, fmin, fmax, SVDSSAOp,(k)...);
 dqx = imagi.(QQ);dqy = imagj.(QQ); dqz = imagk.(QQ);
 pq,svq,shq = unmix(dqz,dqy,dqx);
 
+k = 3; # 2 works best, but it is unrealistic. Still trial and error
 drx = fx_process(dnx, dt, fmin, fmax, SVDSSAOp, (k)...);
 dry = fx_process(dny, dt, fmin, fmax, SVDSSAOp, (k)...);
 drz = fx_process(dnz, dt, fmin, fmax, SVDSSAOp, (k)...);

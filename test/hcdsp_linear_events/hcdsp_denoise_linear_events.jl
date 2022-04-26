@@ -10,7 +10,7 @@ using Revise
 using FFTW
 using PyPlot
 using SeisMain, SeisPlot
-using HCDSP,IterativeMethods
+using HCDSP, IterativeMethods
 
 params_zx = (ot=0.0, dt=0.004, nt=500, ox1=0.0, dx1=10.0,
             nx1=50, ox2=0.0, dx2=10.0, nx2=50, ox3=0.0, dx3=10.0,
@@ -39,7 +39,7 @@ dnz = SeisAddNoise(dzz, 3.0, db=true, L=9);
 # Define time domain quaternion
 Q = quaternion(dnx,dny,dnz);
 
-# Quaternion denoising
+# Quaternion denoising kq = 2*kr because of C represent
 QQ = fx_process(Q, 0.004, 0, 100, SVDSSAOp, (4));
 
 # Component-wise denoising
