@@ -80,7 +80,7 @@ dnz = SeisAddNoise(dzz,  1.0, db=true, L=3);
 # Quaternion denoising
 Q = quaternion(dnx,dny,dnz);
 
-dt = 0.004; fmin = 0.0; fmax = 50; k = 3; # best trial-and-error
+dt = 0.004; fmin = 0.0; fmax = 100; k = 3; # best trial-and-error
 
 QQ = fx_process(Q, dt, fmin, fmax, SVDSSAOp,(2k)...);
 dqx = imagi.(QQ);dqy = imagj.(QQ); dqz = imagk.(QQ);
@@ -133,5 +133,5 @@ SeisPlotTX([sv[:,:,j] svq[:,:,j] svr[:,:,j]],fignum="panel",style="overlay",wbox
 gcf()
 
 close("all"); clf();
-SeisPlotTX([sh[:,:,j] shq[:,:,j] shr[:,:,j]],fignum="panel",style="overlay",wbox=10,xcur=1.5,pclip=80);
+SeisPlotTX([sh[:,:,j] shq[:,:,j] shr[:,:,j]],fignum="panel",style="overlay",wbox=10,xcur=1.5,pclip=95);
 gcf()

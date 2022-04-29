@@ -1,5 +1,19 @@
 function imputation_op(inp::AbstractArray{Ti,N},
-                       smp::Union{AbstractArray{Ts,N},Function,Nothing},
+                       Op::Function, args...;
+                       iter = 10,
+                       α = range(1,stop=0,length=iter),
+                       ε=1e-16) where {Ti,Ts,N}
+
+    # get sampling
+    smp = SamplingOp(inp)
+
+    # old or new
+    return imputation_op(inp,smp,Op,args...; iter=iter, α=α, ε=ε)
+
+end
+
+function imputation_op(inp::AbstractArray{Ti,N},
+                       smp::Union{AbstractArray{Ts,N},Function},
                        Op::Function, args...;
                        iter = 10,
                        α = range(1,stop=0,length=iter),
@@ -9,9 +23,6 @@ function imputation_op(inp::AbstractArray{Ti,N},
     # allocate
     old,new,tmp = copy(inp),zero(inp),zero(inp);
 
-    if smp == Nothing
-        smp = GetSamplingOp(inp)
-    end
 
     # safe-guard scalar α
     α = α .* ones(Ti,iter);

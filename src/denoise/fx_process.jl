@@ -66,7 +66,6 @@ function conj_symmetry!(IN)
 end
 
 ## Quaternion F-X Process ##
-
 function fx_process(IN::AbstractArray{Quaternion{T}}, dt::Real, fmin::Real, fmax::Real, Op::Function, args...) where {T}
 
     # Padding

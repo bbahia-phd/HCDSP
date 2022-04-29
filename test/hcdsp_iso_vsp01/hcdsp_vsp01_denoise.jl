@@ -39,54 +39,41 @@ dzx = reshape(dzx,(nt,ns,nsline));
 dzy = reshape(dzy,(nt,ns,nsline));
 dzz = reshape(dzz,(nt,ns,nsline));
 
-j = 31;
-comp = [dzx[:,:,j] dzy[:,:,j] dzz[:,:,j]];
+# Add noise
+dnx = SeisAddNoise(dzx, -2.0, db=true, L=3);
+dny = SeisAddNoise(dzy, -2.0, db=true, L=3);
+dnz = SeisAddNoise(dzz, -2.0, db=true, L=3);
 
-SeisPlotTX(comp,
-           cmap="gray",
-           pclip=90,
-           wbox=9,
-           hbox=9,
-           oy=ext_zx.o1,
-           dy=ext_zx.d1);
-gcf()
-j = 50;
-comp = [dzx[:,j,:] dzy[:,j,:] dzz[:,j,:]];
+# Temporary Quaternion
+Qt = quaternion(dnx,dny,dnz);
 
-SeisPlotTX(comp,
-           cmap="gray",
-           pclip=90,
-           wbox=9,
-           hbox=9,
-           oy=ext_zx.o1,
-           dy=ext_zx.d1);
-gcf()
+# Missing traces
+Qt .= decimate_traces(Qt,perc);
 
-j = 120;
-comp = [dzx[j,:,:] dzy[j,:,:] dzz[j,:,:]];
+fmin = 0; fmax = 80;
+psize = (256,32,32); polap = (50,50,50);
+smin = (1,1,1); smax = (nt,ns,nsline);
 
-SeisPlotTX(comp,
-           cmap="gray",
-           pclip=90,
-           wbox=9,
-           hbox=4);
-gcf()
+# apply patching on input
+patches,pid = fwdPatchOp(Qt, psize, polap, smin, smax);
 
+# Define operator to act on a frequency slice d
+imp_ssa(d,k) = HCDSP.imputation_op(d,SVDSSAOp,(k);iter=10)
 
-Q = quaternion(dzx,dzy,dzz);
+# define fx ssa function
+fssa(δ) = fx_process(δ,dt,fmin,fmax,imp_ssa,(rank[it]))
 
-psize = (128,32,32);
-polap = (50,50,50);
-smin  = (1,1,1);
-smax  = size(Q)
+# fk_thresh all patches
+patches .= pmap(fssa,patches);    
 
-qpatch,pid = fwdPatchOp(Q,psize,polap,smin,smax);
+# rewrite the solution
+out = adjPatchOp(patches, pid, psize, polap, smin, smax);
 
-ax = quaternion(1.0f0,0.0f0,0.0f0)
+# # Component-wise processing
+# Xo = fx_process(imagi.(Qt),dt,fmin,fmax,imp_ssa,(k))
+# Yo = fx_process(imagj.(Qt),dt,fmin,fmax,imp_ssa,(k))
+# Zo = fx_process(imagk.(Qt),dt,fmin,fmax,imp_ssa,(k))
 
-side = "left"
+# # Call fx_process with Q imputation
+# Qo = fx_process(Qt,dt,fmin,fmax,imp_ssa,(2k))
 
-Qf = qfft(qpatch[15][:,:,10],ax,side,1);
-
-clf();
-plot(imagi.(Qf[30,:]));gcf()
