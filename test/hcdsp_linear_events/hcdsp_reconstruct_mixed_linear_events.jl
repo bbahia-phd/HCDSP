@@ -156,8 +156,59 @@ fid["gains/real"]["y"] = ry;
 fid["gains/real"]["z"] = rz;
 
 create_group(fid,"gains/quater")
-fid["gains/real"]["x"] = qx;
-fid["gains/real"]["y"] = qy;
-fid["gains/real"]["z"] = qz;
+fid["gains/quater"]["x"] = qx;
+fid["gains/quater"]["y"] = qy;
+fid["gains/quater"]["z"] = qz;
 
 close(fid)
+
+# Average
+rxr = mean(rx,dims=1);
+ryr = mean(ry,dims=1);
+rzr = mean(rz,dims=1);
+
+rsdx = std(rx,dims=1);
+rsdy = std(ry,dims=1);
+rsdz = std(rz,dims=1);
+
+# Average
+qxr = mean(qx,dims=1);
+qyr = mean(qy,dims=1);
+qzr = mean(qz,dims=1);
+
+qsdx = std(qx,dims=1);
+qsdy = std(qy,dims=1);
+qsdz = std(qz,dims=1);
+
+
+gcf()
+
+perc = 1; #1:9 -> 10:90
+
+close("all");
+clf();
+plot(K,rxr[1,perc,:]);
+plot(K,ryr[1,perc,:]);
+plot(K,rzr[1,perc,:]);
+
+plot(K,qrxr[1,perc,:]);
+plot(K,qyr[1,perc,:]);
+plot(K,qzr[1,perc,:]);
+
+gcf()
+
+# close("all"); clf();
+
+# errorbar(K,rxr,yerr=rsdx,fmt="-o",label="r_x")
+# errorbar(K,qxr,yerr=qsdx,fmt="-o",label="q_x")
+
+# errorbar(K,ryr,yerr=rsdy,fmt="-o",label="r_y")
+# errorbar(K,qyr,yerr=qsdy,fmt="-o",label="q_y")
+
+# errorbar(K,rzr,yerr=rsdz,fmt="-o",label="r_z")
+# errorbar(K,qzr,yerr=qsdz,fmt="-o",label="q_z")
+
+
+# xlabel("'Rank' "*L"(k)",fontsize=15)
+# ylabel(L"R = 10\log{\left( \frac{ \parallel {\bf d}^{o} \parallel^2_F }{\parallel \hat{\bf d}_j - {\bf d}^{o} \parallel^2_F} \right)}",fontsize=15)
+# legend()

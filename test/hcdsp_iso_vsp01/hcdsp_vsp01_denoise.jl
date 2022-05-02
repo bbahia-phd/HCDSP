@@ -76,4 +76,3 @@ out = adjPatchOp(patches, pid, psize, polap, smin, smax);
 
 # # Call fx_process with Q imputation
 # Qo = fx_process(Qt,dt,fmin,fmax,imp_ssa,(2k))
-
