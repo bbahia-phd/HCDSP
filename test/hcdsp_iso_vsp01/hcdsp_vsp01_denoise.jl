@@ -5,6 +5,9 @@ using Pkg
 Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
 Pkg.status()
 
+using Distributed
+addprocs(5)
+
 using Revise
 
 using FFTW
@@ -19,13 +22,13 @@ dzx,hzx,ext_zx = SeisRead(joinpath(data_path,"iso_vsp01_zx_crg1350.seis"));
 dzy,hzy,ext_zy = SeisRead(joinpath(data_path,"iso_vsp01_zy_crg1350.seis"));
 dzz,hzz,ext_zz = SeisRead(joinpath(data_path,"iso_vsp01_zz_crg1350.seis"));
 
-dt = ext_zz.d1;
-nt = ext_zz.n1;
+dt = Float64(ext_zz.d1);
+nt = Int64(ext_zz.n1);
 
 ntr = ext_zz.n2;
 
-rz_init = 1350.0f0; # m
-rz_end  = 1850.01f0; # m
+rz_init = 1350.0; # m
+rz_end  = 1850.01; # m
 drz = 16.667 ; # m 
 rz_axis = range(rz_init, rz_end, step=drz);
 nr = length(rz_axis)
@@ -48,12 +51,13 @@ dnz = SeisAddNoise(dzz, -2.0, db=true, L=3);
 Qt = quaternion(dnx,dny,dnz);
 
 # Missing traces
+perc = 40;
 Qt .= decimate_traces(Qt,perc);
 
 fmin = 0; fmax = 80;
 psize = (256,32,32); polap = (50,50,50);
 smin = (1,1,1); smax = (nt,ns,nsline);
-
+ 
 # apply patching on input
 patches,pid = fwdPatchOp(Qt, psize, polap, smin, smax);
 
