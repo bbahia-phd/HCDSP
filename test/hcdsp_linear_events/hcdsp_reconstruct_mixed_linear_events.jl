@@ -183,7 +183,7 @@ qsdz = std(qz,dims=1);
 
 gcf()
 
-perc = 1; #1:9 -> 10:90
+perc = 4; #1:9 -> 10:90
 
 close("all");
 clf();
@@ -191,11 +191,12 @@ plot(K,rxr[1,perc,:]);
 plot(K,ryr[1,perc,:]);
 plot(K,rzr[1,perc,:]);
 
-plot(K,qrxr[1,perc,:]);
+plot(K,qxr[1,perc,:]);
 plot(K,qyr[1,perc,:]);
 plot(K,qzr[1,perc,:]);
 
 gcf()
+
 
 # close("all"); clf();
 
