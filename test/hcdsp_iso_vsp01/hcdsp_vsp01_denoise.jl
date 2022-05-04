@@ -8,7 +8,7 @@ Pkg.status()
 using Distributed
 addprocs(5)
 
-using Revise
+@everywhere using Revise
 
 using FFTW
 using PyPlot
