@@ -48,7 +48,6 @@ dry = fx_process(dny, 0.004, 0, 100, SVDSSAOp, (2));
 drz = fx_process(dnz, 0.004, 0, 100, SVDSSAOp, (2));
 
 # prediction_quality
-
 Rx = quality(drx,dzx)
 Ry = quality(dry,dzy)
 Rz = quality(drz,dzz)
