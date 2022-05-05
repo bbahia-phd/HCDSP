@@ -1,3 +1,4 @@
+
 cd(joinpath(homedir(),"projects"))
 pwd()
 
@@ -58,10 +59,10 @@ yunit     = "(s)"
 xlabel    = "Trace"
 xunit     = ""
 
-clf();close("all")
+clf(); close("all")
 
 # Time domain 2D plot #
-figure(fignum,figsize=(10,10))
+figure(fignum,figsize=(10,8))
 
 subplot(2,3,1)
 SeisPlotTX(dx,
@@ -102,7 +103,6 @@ SeisPlotTX(dz,
         title="(c)"
 )
 
-
 subplot(2,3,4)
 SeisPlotFK(dx,
         oy=0.0,
@@ -114,7 +114,8 @@ SeisPlotFK(dx,
         xlabel=xlabel,
         xunits=xunit,
         title="(d)"
-        )
+)
+colorbar()
 
 subplot(2,3,5)
 SeisPlotFK(dy,
@@ -128,6 +129,7 @@ SeisPlotFK(dy,
         xunits=xunit,
         title="(e)"
 )
+colorbar()
 
 subplot(2,3,6)
 SeisPlotFK(dz,
@@ -141,16 +143,27 @@ SeisPlotFK(dz,
         xunits=xunit,
         title="(f)"
 )
+colorbar()
 
 tight_layout()
 gcf()
 
-savefig(fignum,dip=200)
+savefig(fignum,dip=300)
+
+## New fig: Q-SPECTRA ##
+
+fignum="qft_spectra"
 
 # Temporary Quaternion
 Qt = quaternion(dx,dy,dz);
 
 μ = μ0
+
+# Q-Amplitude Spectra #
+
+Qft = qfft(Qt,μ,"left",1)
+
+qas = fftshift(sum(abs.(Qft),dims=2))
 
 # Q-FK Spectra #
 cmap="PuOr"
@@ -158,26 +171,11 @@ pclip=99.9
 
 aspect="auto"
 interpolation="Hanning"
-title=" "
 
 titlesize=16
 labelsize=14
 
-xticks="NULL"
-yticks="NULL"
-
-xticklabels="NULL"
-yticklabels="NULL"
-ticksize=11
-
-fignum="NULL"
-
-wbox=6
-hbox=6
-
-dpi=100
-
-name="NULL"
+dpi=300
 
 xlabel = "Wavenumber"
 xunits = "(1/m)"
@@ -192,36 +190,39 @@ kmax =  dk*size(Qt,2)/2
 df = 1/dt/size(Qt,1)
 fmin = -df*size(Qt,1)/2
 fmax =  df*size(Qt,1)/2
-
 nf = Int32(floor(size(Qt,1)/2))
+faxis = range(fmin,fmax;length=2nf+1)
 
 Qf = qfft(Qt,μ,"left")
 
 qfk = abs.(fftshift(Qf));
 
-clf();close("all")
-
+clf(); close("all")
 # Time domain 2D plot #
-figure(fignum,figsize=(10,10))
+fignum="qft_spectra"
+figure(fignum,figsize=(8,4))
 
 subplot(1,2,1)
-
-imshow(qfk,
-        cmap=cmap,
-        extent=[kmin,kmax,fmin,fmax],
-        aspect="auto")
-
-# Q-Amplitude Spectra #
-
-Qft = qfft(Qt,μ,"left",1)
-
-qas = fftshift(sum(abs.(Qft),dims=2))
-
-clf(); close("all");
+plot(faxis,qas)
+grid()
+PyPlot.title("(a)")
+PyPlot.xlabel("Frequency (Hz)")
+PyPlot.ylabel("Amplitude")
 
 subplot(1,2,2)
-plot(qas)
+
+imshow(qfk,
+        cmap=cmap_fk,
+        extent=[kmin,kmax,fmin,fmax],
+        aspect=aspect,
+        interpolation=interpolation)       
+colorbar()
+PyPlot.title("(b)")
+PyPlot.xlabel("Wavenumber (1/m)")
+PyPlot.ylabel("Frequency Hz")
+
+tight_layout()
 
 gcf()
 
-tight_layout()
+savefig(fignum,dpi=300)
