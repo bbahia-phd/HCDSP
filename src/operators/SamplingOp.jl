@@ -109,7 +109,7 @@ end
 function SamplingMtx(IN::Array{Complex{Float64}}; cutoff::Float64 = 1e-10)
     
     # Prelim
-     n = prod(size(IN))
+    n = prod(size(IN))
 
     # Initialize sampler
     OUT = sparse(I,n,n)
@@ -126,7 +126,7 @@ end
 function SamplingMtx(IN::Array{Float64}; cutoff::Float64 = 1e-10)
     
     # Prelim
-     n = prod(size(IN))
+    n = prod(size(IN))
 
     # Initialize sampler
     OUT = sparse(I,n,n)

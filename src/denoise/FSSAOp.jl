@@ -4,7 +4,7 @@ import Base: vec
 function vec(tuple::NTuple{N}) where N
     out = zeros(Int,length(tuple))
     for i in eachindex(out)
-    out[i] = tuple[i]
+        out[i] = tuple[i]
     end
     return out
 end
@@ -44,13 +44,15 @@ function fast_ssa_lanc(IN,k)
 
     A(x,i;kwargs...) = i == 1 ? fwd(x) : adj(x)
 
-    U, Bk, V = HCDSP.lanbpro(A,k,m=prod(L),n=prod(K))
+    U, _, _ = HCDSP.lanbpro(A,k,m=prod(L),n=prod(K))
 
-    Ub = U*Bk;
+    #Ub = U*Bk;
 
     # do fast anti-diagonal averaging using rank-1 approx
     for i in 1:k
-        out += anti_diagonal_summation(Ub[:,i],V[:,i],L,K);
+        u = @view U[:,i]
+        v = A(u,2);
+        out += anti_diagonal_summation(u,v,L,K);
     end
 
     count = count_copy_times(vec(dims))
@@ -93,12 +95,12 @@ function fast_ssa_qr(IN::AbstractArray{T},k) where T
         P[:,i] .= mbh_multiply(IN,Ω[:,i],flag="fwd")
     end
 
-    # Quaternion QR
+    # QR
     Qr,_ = qr(P)
 
     for i in 1:k
 
-        q = copy(Qr[:,i]);
+        q = Qr[:,i];
 
         t = mbh_multiply(IN,q,flag="adj");
 
@@ -258,7 +260,7 @@ function fast_qssa_qr(IN::AbstractArray{Quaternion{T}},k) where T
     K = dims .- L .+ 1;
 
     # Random matrix for projection
-    Ω = Quaternion.(rand(prod(K),k),rand(prod(K),k),rand(prod(K),k));
+    Ω = Quaternion.(rand(prod(K),k),rand(prod(K),k),rand(prod(K),k),rand(prod(K),k));
 
     # projection
     P = zerosq((prod(L),k))

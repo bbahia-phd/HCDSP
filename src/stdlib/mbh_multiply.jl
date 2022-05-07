@@ -3,7 +3,7 @@
    multi-level Hankel matrix or its adjoint times a vector (vectorization of a
 multi-dimensional array)
 """
-function mbh_multiply(d::Array{Tv,N}, v::Array{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number,N}
+function mbh_multiply(d::AbstractArray{Tv,N}, v::AbstractArray{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number,N}
 
     if N <= 5
         return hankel_multiplication(d, v; flag = flag)
@@ -91,7 +91,7 @@ end
    multi-level Hankel matrix or its adjoint times a vector (vectorization of a
 multi-dimensional array)
 """
-function hankel_multiplication(d::Matrix{Tv}, v::Array{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number}
+function hankel_multiplication(d::AbstractMatrix{Tv}, v::AbstractArray{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number}
 
     # dimensions of array
     dims = size(d)
@@ -188,7 +188,7 @@ end # end function
    multi-level Hankel matrix or its adjoint times a vector (vectorization of a
 multi-dimensional array)
 """
-function hankel_multiplication(d::Array{Tv,3}, v::Array{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number}
+function hankel_multiplication(d::AbstractArray{Tv,3}, v::AbstractArray{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number}
 
     # dimensions of array
     dims = size(d)
@@ -290,7 +290,7 @@ end # end function
    multi-level Hankel matrix or its adjoint times a vector (vectorization of a
 multi-dimensional array)
 """
-function hankel_multiplication(d::Array{Tv,4}, v::Array{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number}
+function hankel_multiplication(d::AbstractArray{Tv,4}, v::AbstractArray{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number}
 
     # dimensions of array
     dims = size(d)
@@ -397,7 +397,7 @@ end # end function
    multi-level Hankel matrix or its adjoint times a vector (vectorization of a
 multi-dimensional array)
 """
-function hankel_multiplication(d::Array{Tv,5}, v::Array{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number}
+function hankel_multiplication(d::AbstractArray{Tv,5}, v::AbstractArray{Ti}; flag="fwd") where {Tv<:Number, Ti<:Number}
 
     # dimensions of array
     dims = size(d)
@@ -510,8 +510,8 @@ end # end function
 """
    Fast anti-diagonal averaging for multi-level Hankel matrix
 """
-function anti_diagonal_summation(u::Vector{Tv},
-                                 v::Vector{Tv},
+function anti_diagonal_summation(u::AbstractVector{Tv},
+                                 v::AbstractVector{Tv},
                                  L::Tuple{Vararg{Int}},
                                  K::Tuple{Vararg{Int}}) where {Tv<:Number}
 
@@ -548,7 +548,7 @@ end
 """
    slow anti-diagonal summation via building multi-level hankel matrix first.
 """
-function anti_diagonal_summation_slow(u::Vector{Tv}, v::Vector{Tv},
+function anti_diagonal_summation_slow(u::AbstractVector{Tv},                                    v::AbstractVector{Tv},
                                       L::Union{Ti,Vector{Ti}},
                                       K::Union{Ti,Vector{Ti}}) where {Tv <: Number, Ti<:Int64}
 

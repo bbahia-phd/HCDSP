@@ -528,7 +528,7 @@ end
    reverse the order of the element of a multi-dimensional array and padding zeros
 to the resultant multi-dimensional array
 """
-function reverse_order(d::Array{Tv}; n1=0, n2=0, n3=0, n4=0, n5=0)  where {Tv <: Number}
+function reverse_order(d::AbstractArray{Tv}; n1=0, n2=0, n3=0, n4=0, n5=0)  where {Tv <: Number}
 
     # get the dimensions of input array
     dims = size(d)
