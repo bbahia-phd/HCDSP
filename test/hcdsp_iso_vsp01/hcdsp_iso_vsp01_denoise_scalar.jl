@@ -2,7 +2,7 @@ cd(joinpath(homedir(),"projects"))
 pwd()
 
 using Distributed
-addprocs(3)
+addprocs(5)
 
 @everywhere using Pkg
 @everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
