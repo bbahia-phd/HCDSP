@@ -151,6 +151,7 @@ function fast_qssa_lanc(IN,k)
     A(x,i;kwargs...) = i == 1 ? fwd(x) : adj(x)
 
     U, Bk, V = lanbpro(A,k,m=prod(L),n=prod(K),qflag=true)
+    # U, _, _ = HCDSP.lanbpro(A,k,m=prod(L),n=prod(K))
 
     Ub = U*Bk;
 
@@ -159,9 +160,17 @@ function fast_qssa_lanc(IN,k)
         out += anti_diagonal_summation(Ub[:,i],V[:,i],L,K);
     end
 
+    # # do fast anti-diagonal averaging using rank-1 approx
+    # for i in 1:k
+    #     u = @view U[:,i]
+    #     v = A(u,2);
+    #     out += anti_diagonal_summation(u,v,L,K);
+    # end
+
     count = count_copy_times(vec(dims))
 
     return out ./ count
+
 end
 
 afwd(IN,x) = vcat( qmbh_multiply(IN,x,flag="fwd"),

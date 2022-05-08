@@ -1,37 +1,44 @@
-cd(joinpath(homedir(),"projects"))
 pwd()
 
 using Distributed
-addprocs(3)
+addprocs(19)
+
+@everywhere dev_dir="/dev/Breno_GOM/projects/";
+
+cd(dev_dir)
+#cd(joinpath(homedir(),"projects"))
+
+pwd()
 
 @everywhere using Pkg
-@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
+@everywhere Pkg.activate(joinpath(dev_dir,"HCDSP/"))
 @everywhere Pkg.status()
 
 @everywhere using Revise
 
 @everywhere using FFTW
 @everywhere using PyPlot
+@everywhere using LinearAlgebra
 @everywhere using SeisMain, SeisPlot
-@everywhere using HCDSP, IterativeMethods
+@everywhere using HCDSP#, IterativeMethods
 
 # data dir home
-data_path = "./files/vsp3d9c/iso_vsp01/";  
+data_path = "/dev/Breno_GOM/iso_vsp01/";  
 
-dzx,hzx,ext_zx = SeisRead(joinpath(data_path,"iso_vsp01_zx_crg1350.seis"));
-dzy,hzy,ext_zy = SeisRead(joinpath(data_path,"iso_vsp01_zy_crg1350.seis"));
-dzz,hzz,ext_zz = SeisRead(joinpath(data_path,"iso_vsp01_zz_crg1350.seis"));
+dzx,hzx,ext_zx = SeisRead("./../iso_vsp01/sgy/iso_vsp01_zx_crg1350.seis");
+dzy,hzy,ext_zy = SeisRead("./../iso_vsp01/sgy/iso_vsp01_zy_crg1350.seis");
+dzz,hzz,ext_zz = SeisRead("./../iso_vsp01/sgy/iso_vsp01_zz_crg1350.seis");
 
-dt = Float64(ext_zz.d1);
-nt = Int64(ext_zz.n1);
-ntr = ext_zz.n2;
+dt      = Float64(ext_zz.d1);
+nt      = Int64(ext_zz.n1);
+ntr     = ext_zz.n2;
 rz_init = 1350.0; # m
 rz_end  = 1850.01; # m
-drz = 16.667 ; # m 
+drz     = 16.667 ; # m 
 rz_axis = range(rz_init, rz_end, step=drz);
-nr = length(rz_axis)
-nsline = 205; # number of source lines
-ns = 205; # number of sources within lines
+nr      = length(rz_axis)
+ns      = 205; # number of sources within lines
+nsline  = 205; # number of source lines
 
 @assert ns*nsline == ntr == size(dzz,2)
 
@@ -46,9 +53,10 @@ dny = SeisAddNoise(dzy, snry, db=true);
 dnz = SeisAddNoise(dzz, snrz, db=true);
 
 # Missing traces
-perc = 40;
+perc = 50;
 
 # Temporary Quaternion
+Qc = quaternion(dzx,dzy,dzz);
 Qt = quaternion(dnx,dny,dnz);
 
 # Decimate quaternion: all have same traces missing
@@ -69,29 +77,38 @@ dy = imagj.(Qt);
 dz = imagk.(Qt);
 
 # apply patching on input
-pc,_        = fwdPatchOp(dzz, psize, polap, smin, smax);
-patches,pid = fwdPatchOp(dz, psize, polap, smin, smax);
+pc,_        = fwdPatchOp(Qc, psize, polap, smin, smax);
+patches,pid = fwdPatchOp(Qt, psize, polap, smin, smax);
 
 # Define operator to act on a frequency slice d
-@everywhere imp_ssa(d,k) = HCDSP.imputation_op(d, fast_ssa_lanc, (k); iter=5, α=0.4)
+@everywhere imp_ssa(d,k) = HCDSP.imputation_op(d, fast_qssa_lanc, (k); iter=50)
 
 # "rank"-selection
-@everywhere k = 8;
+@everywhere k = 15;
 
 # define fx ssa function
 @everywhere fssa(δ) = fx_process(δ,dt,fmin,fmax,imp_ssa,(k))
 
+# time single-patch
 @time pp = fssa(patches[10]);
 
-# fk_thresh all patches
-pout = similar(patches);
-@time pout .= pmap(fssa,patches);    
+# SSA all patches
+pqout = similar(patches);
+@time pqout .= pmap(fssa,patches);    
 
-# rewrite the solution
-out = adjPatchOp(pout, pid, psize, polap, smin, smax);
-dif = dzz - out;
+# patch difference
+difp = pc .- pqout;
 
-n=100;
-SeisPlotTX(
-    [dzz[:,:,n] dz[:,:,n] out[:,:,n] dif[:,:,n]],wbox=8, hbox=4, cmap="gray");
-gcf()
+# unpatch the solution
+xout = adjPatchOp(imagi.(pqout), pid, psize, polap, smin, smax);
+yout = adjPatchOp(imagj.(pqout), pid, psize, polap, smin, smax);
+zout = adjPatchOp(imagk.(pqout), pid, psize, polap, smin, smax);
+
+# check scale difference
+α = dot(dzz,zout) / dot(zout,zout)
+dif = dzz - α .* zout;
+
+#n=100;
+#SeisPlotTX([dzz[:,:,n] dz[:,:,n] out[:,:,n] dif[:,:,n]],
+#            wbox=8, hbox=4, cmap="gray");
+#gcf()
