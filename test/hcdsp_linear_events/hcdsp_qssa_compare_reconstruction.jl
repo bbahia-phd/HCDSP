@@ -55,8 +55,8 @@ iω = 15;
 dc = copy(INC[iω,indx]);
 
 # These act on a frequency slice d
-imp_ssa(d,T,k) = HCDSP.imputation_op(d,T,SVDSSAOp,(k);iter=10)
-imp_rqr(d,T,k) = HCDSP.imputation_op(d,T,rQROp,(k);iter=10)
+imp_ssa(d,T,k) = HCDSP.imputation_op(d,T,SVDSSAOp,(k); iter=10)
+imp_rqr(d,T,k) = HCDSP.imputation_op(d,T,rQROp,(k);    iter=10)
 imp_lan(d,T,k) = HCDSP.imputation_op(d,T,LANCSSAOp,(k);iter=10)
 
 # ranks to test
@@ -73,9 +73,20 @@ tmp = zeros(eltype(dc),size(dc)...);
 # number of realizations
 rmax = 20;
 
-r1 = zeros(rmax,pmax,kmax);
-r2 = zeros(rmax,pmax,kmax);
-r3 = zeros(rmax,pmax,kmax);
+r1x = zeros(rmax,pmax,kmax);
+r1y = zeros(rmax,pmax,kmax);
+r1z = zeros(rmax,pmax,kmax);
+
+r2x = zeros(rmax,pmax,kmax);
+r2y = zeros(rmax,pmax,kmax);
+r2z = zeros(rmax,pmax,kmax);
+
+r3x = zeros(rmax,pmax,kmax);
+r3y = zeros(rmax,pmax,kmax);
+r3z = zeros(rmax,pmax,kmax);
+
+# Add noise
+snrx,snry,snrz=0.8,1.0,1.2;
 
 for k in 1:kmax
     kk = K[k]
@@ -85,9 +96,9 @@ for k in 1:kmax
 
         for r in 1:rmax
             # Noise
-            dnx = SeisAddNoise(dzx, -2.0, db=true, L=3);
-            dny = SeisAddNoise(dzy, -2.0, db=true, L=3);
-            dnz = SeisAddNoise(dzz, -2.0, db=true, L=3);            
+            dnx = SeisAddNoise(dzx, snrx, db=true, L=3);
+            dny = SeisAddNoise(dzy, snry, db=true, L=3);
+            dnz = SeisAddNoise(dzz, snrz, db=true, L=3);            
 
             # Temporary Quaternion
             Qt = quaternion(dnx,dny,dnz);
@@ -106,13 +117,19 @@ for k in 1:kmax
             T = SamplingOp(d);
     
             tmp .= imp_ssa(d,T,kk);
-            r1[r,p,k] = quality(tmp,dc);
+            r1x[r,p,k] = quality(imagi.(tmp),imagi.(dc));
+            r1y[r,p,k] = quality(imagj.(tmp),imagj.(dc));
+            r1z[r,p,k] = quality(imagk.(tmp),imagk.(dc));
     
             tmp .= imp_rqr(d,T,kk);
-            r2[r,p,k] = quality(tmp,dc);
+            r2x[r,p,k] = quality(imagi.(tmp),imagi.(dc));
+            r2y[r,p,k] = quality(imagj.(tmp),imagj.(dc));
+            r2z[r,p,k] = quality(imagk.(tmp),imagk.(dc));
     
             tmp .= imp_lan(d,T,kk);
-            r3[r,p,k] = quality(tmp,dc);
+            r3x[r,p,k] = quality(imagi.(tmp),imagi.(dc));
+            r3y[r,p,k] = quality(imagj.(tmp),imagj.(dc));
+            r3z[r,p,k] = quality(imagk.(tmp),imagk.(dc));
         end       
         @show [kk perc mean(r1[:,p,k],dims=1) mean(r2[:,p,k],dims=1) mean(r3[:,p,k],dims=1)]    
     end
@@ -130,71 +147,4 @@ fid["gains"]["lanc"] = r3;
 
 close(fid)
 
-#r1 = h5read(fname, "gains/svd")
-#r2 = h5read(fname, "gains/rqr")
-#r3 = h5read(fname, "gains/lanc")
-
-# Calls for different SSA-based reconstruction
-# dsvd = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,SVDSSAOp,(5))...);
-# dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,rQROp,(20))...);
-# dqr  = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,QRFSSAOp,(5))...);
-# dout = fx_process(dnx,dt,fmin,fmax,HCDSP.imputation_op,(T,FSSAOp,(5))...);
-
-# # Average
-#
-# r1r =  mean(r1,dims=1)
-# r2r = vec(mean(r2,dims=1));
-# r3r = vec(mean(r3,dims=1));
-
-# std1 = vec(std(r1,dims=1));
-# std2 = vec(std(r2,dims=1));
-# std3 = vec(std(r3,dims=1));
-
-# close("all");
-# clf();
-
-# errorbar(K,r1r,yerr=std1,fmt="-o",label="SVD")
-# errorbar(K,r2r,yerr=std2,fmt="-o",label="rQR")
-# errorbar(K,r3r,yerr=std3,fmt="-o",label="Lanczos")
-# xlabel("'Rank' "*L"(k)",fontsize=15)
-# ylabel(L"R = 10\log{\left( \frac{ \parallel {\bf d}^{o} \parallel^2_F }{\parallel \hat{\bf d}_j - {\bf d}^{o} \parallel^2_F} \right)}",fontsize=15)
-# legend()
-
-# gcf()
-
-# close("all");
-# clf();
-# plot(K,r1r);
-# plot(K,r2r);
-# plot(K,r3r);
-# gcf()
-
-# close("all");clf()
-# fignum="time_domain_data";
-# figure(fignum,figsize=(9,5));
-
-# subplot(1,2,1);
-# SeisPlotTX(dzx[:,1:2:80,1],
-#         dy=dt,
-#         dx=10,
-#         cmap="gray",
-#         style="overlay",
-#         fignum=fignum,
-#         xcur=2,
-#         title="(a)",
-#         ylabel="Time (s)",
-#         xlabel="Offset (m)")
-
-# subplot(1,2,2);
-# SeisPlotTX(dnx[:,1:2:80,1],
-#         dy=dt,
-#         dx=10,
-#         cmap="gray",
-#         style="overlay",
-#         fignum=fignum,
-#         xcur=2,
-#         title="(b)",
-#         ylabel="Time (s)",
-#         xlabel="Offset (m)")
-# tight_layout();
-# gcf()
+#EOF
