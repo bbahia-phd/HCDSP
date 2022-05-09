@@ -144,50 +144,50 @@ file_path = "./HCDSP/data/hcdsp_recon_3d3c_linear_events"
 
 ## Write clean data to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zz.bin")
-read_write(file,"w";n=size(dzz),input=dzz)
+read_write(file,"w";n=size(dzz),input=dzz,T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zy.bin")
-read_write(file,"w";n=size(dzy),input=dzy)
+read_write(file,"w";n=size(dzy),input=dzy,T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zx.bin")
-read_write(file,"w";n=size(dzx),input=dzx)
+read_write(file,"w";n=size(dzx),input=dzx,T=Float32)
 
 ## Write Input data to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qt))
+read_write(file,"w";n=size(dzz),input=imagk.(Qt),T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qt))
+read_write(file,"w";n=size(dzy),input=imagj.(Qt),T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qt))
+read_write(file,"w";n=size(dzx),input=imagi.(Qt),T=Float32)
 
 ## Write SSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zz.bin")
 read_write(file,"w";n=size(dzz),input=Xo,T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=Yo)
+read_write(file,"w";n=size(dzy),input=Yo,T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=Zo)
+read_write(file,"w";n=size(dzx),input=Zo,T=Float32)
 
 ## Write QSSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qo))
+read_write(file,"w";n=size(dzz),input=imagk.(Qo),T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qo))
+read_write(file,"w";n=size(dzy),input=imagj.(Qo),T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qo))
+read_write(file,"w";n=size(dzx),input=imagi.(Qo),T=Float32)
 
 ## Write AQSSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qa))
+read_write(file,"w";n=size(dzz),input=imagk.(Qa),T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qa))
+read_write(file,"w";n=size(dzy),input=imagj.(Qa),T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qa))
+read_write(file,"w";n=size(dzx),input=imagi.(Qa),T=Float32)
