@@ -57,10 +57,10 @@ end
 """
    Fast anti-diagonal averaging for multi-level Hankel matrix
 """
-function anti_diagonal_sum(u::Vector{Quaternion{Tv}},
-                                 v::Vector{Quaternion{Tv}},
-                                 L::Tuple{Vararg{Int}},
-                                 K::Tuple{Vararg{Int}}) where {Tv<:Real}
+function anti_diagonal_sum(u::AbstractVector{Quaternion{Tv}},
+                           v::AbstractVector{Quaternion{Tv}},
+                           L::Tuple{Vararg{Int}},
+                           K::Tuple{Vararg{Int}}) where {Tv<:Real}
 
     # order of hankel matrix
     order =  length(L)

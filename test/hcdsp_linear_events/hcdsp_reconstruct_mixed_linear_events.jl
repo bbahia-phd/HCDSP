@@ -1,18 +1,40 @@
-cd(joinpath(homedir(),"projects"))
+# cd(joinpath(homedir(),"projects"))
+# pwd()
+
+# using Pkg
+# Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
+# Pkg.status()
+
+# using Revise
+
+# using FFTW
+# using HCDSP
+# using PyPlot
+# using LinearAlgebra
+# using StatsBase,Statistics
+# using SeisMain, SeisPlot
+
+pwd()
+
+dev_dir="/dev/Breno_GOM/projects/";
+
+cd(dev_dir)
+#cd(joinpath(homedir(),"projects"))
+
 pwd()
 
 using Pkg
-Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
+Pkg.activate(joinpath(dev_dir,"HCDSP/"))
 Pkg.status()
 
 using Revise
 
 using FFTW
-using HCDSP
 using PyPlot
 using LinearAlgebra
 using StatsBase,Statistics
 using SeisMain, SeisPlot
+using HCDSP
 
 function get_mode_data(;nx1=40,nx2=40,nx3=1,nx4=1)
 
@@ -161,7 +183,9 @@ end
 
 using HDF5
 
-fname = joinpath(homedir(),"projects/HCDSP/data/hcdsp_reconstruct_mixed_linear_events.h5")
+file_path = "./HCDSP/data/hcdsp_recon_3d3c_linear_events"
+
+fname = joinpath(file_path,"hcdsp_reconstruct_mixed_linear_events.h5")
 fid = h5open(fname, "w")
 
 create_group(fid,"gains/real")
@@ -180,54 +204,3 @@ fid["gains/aquater"]["y"] = aqy;
 fid["gains/aquater"]["z"] = aqz;
 
 close(fid)
-
-# # Average
-# rxr = mean(rx,dims=1);
-# ryr = mean(ry,dims=1);
-# rzr = mean(rz,dims=1);
-
-# rsdx = std(rx,dims=1);
-# rsdy = std(ry,dims=1);
-# rsdz = std(rz,dims=1);
-
-# # Average
-# qxr = mean(qx,dims=1);
-# qyr = mean(qy,dims=1);
-# qzr = mean(qz,dims=1);
-
-# qsdx = std(qx,dims=1);
-# qsdy = std(qy,dims=1);
-# qsdz = std(qz,dims=1);
-
-
-# gcf()
-
-# perc = 4; #1:9 -> 10:90
-
-# close("all");
-# clf();
-# plot(K,rxr[1,perc,:]);
-# plot(K,ryr[1,perc,:]);
-# plot(K,rzr[1,perc,:]);
-
-# plot(K,qxr[1,perc,:]);
-# plot(K,qyr[1,perc,:]);
-# plot(K,qzr[1,perc,:]);
-
-# gcf()
-
-# close("all"); clf();
-
-# errorbar(K,rxr,yerr=rsdx,fmt="-o",label="r_x")
-# errorbar(K,qxr,yerr=qsdx,fmt="-o",label="q_x")
-
-# errorbar(K,ryr,yerr=rsdy,fmt="-o",label="r_y")
-# errorbar(K,qyr,yerr=qsdy,fmt="-o",label="q_y")
-
-# errorbar(K,rzr,yerr=rsdz,fmt="-o",label="r_z")
-# errorbar(K,qzr,yerr=qsdz,fmt="-o",label="q_z")
-
-
-# xlabel("'Rank' "*L"(k)",fontsize=15)
-# ylabel(L"R = 10\log{\left( \frac{ \parallel {\bf d}^{o} \parallel^2_F }{\parallel \hat{\bf d}_j - {\bf d}^{o} \parallel^2_F} \right)}",fontsize=15)
-# legend()
