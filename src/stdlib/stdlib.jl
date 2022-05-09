@@ -19,6 +19,7 @@ export read_write,
         qmbh_multiply,
         hankel_multiplication,
         lanbpro,
+        anti_diagonal_sum,
         anti_diagonal_summation,
         anti_diagonal_summation_slow        
 

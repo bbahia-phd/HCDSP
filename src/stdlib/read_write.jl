@@ -18,14 +18,14 @@ julia>
 julia>
 ```
 """
-function read_write(filename::AbstractString, flag::AbstractString ; n::Tuple{Vararg{Int}}=(), input=[])
+function read_write(filename::AbstractString, flag::AbstractString ; n::Tuple{Vararg{Int}}=(), input=[], T=Float64)
     
     filename="$filename"
     fid = open(filename,flag)
     
     if flag == "r"
         
-        input = zeros(Float32,prod(n));
+        input = zeros(T,prod(n));
         read!(fid, input);
         close(fid)
 
@@ -33,7 +33,7 @@ function read_write(filename::AbstractString, flag::AbstractString ; n::Tuple{Va
         
     else flag == "w"
         
-        write(fid,convert.(Float32,input))
+        write(fid,convert.(T,input))
         close(fid)
 
         return nothing

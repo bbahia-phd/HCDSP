@@ -173,6 +173,7 @@ function fast_qssa_lanc(IN,k)
 
 end
 
+
 afwd(IN,x) = vcat( qmbh_multiply(IN,x,flag="fwd"),
                    qmbh_multiply(invi.(IN),x,flag="fwd"),
                    qmbh_multiply(invj.(IN),x,flag="fwd"),
@@ -208,23 +209,22 @@ Computes the augmented quaternionic rank-k approximation of IN via a Lanczos-bas
 
 The implementation uses fast matrix-vector products based on QFTs.
 """
-function fast_aqssa_lanc(IN,k)
+function fast_aqssa_lanc(IN,k)  
 
     # dimensions of array
-    dims_in = size(IN);
-    dims_pad = nextpow.(2,dims_in);
-
-    # PAD IN
-    INP = PadOp(IN,nin=dims_in,npad=dims_pad,flag="fwd");
+    dims = size(IN);
 
     # OUT
-    OUTP = zero(INP)
+    OUTP = zero(IN);
+    OUTI = zero(IN);
+    OUTJ = zero(IN);
+    OUTK = zero(IN);
 
     # Matrix dimensions
-    L = floor.(Int64, dims_pad ./ 2) .+ 1;
-    K = dims_pad .- L .+ 1;
+    L = floor.(Int64, dims ./ 2) .+ 1;
+    K = dims .- L .+ 1;
 
-    A(x,i;kwargs...) = i == 1 ? afwd(INP,x) : aadj(INP,x)
+    A(x,i;kwargs...) = i == 1 ? afwd(IN,x) : aadj(IN,x)
 
     U, Bk, V = lanbpro(A,k,m=4prod(L),n=prod(K),qflag=true)
 
@@ -232,14 +232,17 @@ function fast_aqssa_lanc(IN,k)
 
     # do fast anti-diagonal averaging using rank-1 approx
     for i in 1:k
-        OUTP += anti_diagonal_summation(Ub[1:prod(L),i],V[:,i],L,K);
+        OUTP += anti_diagonal_sum(Ub[1:prod(L),i],V[:,i],L,K);
+        OUTI += anti_diagonal_sum(Ub[prod(L)+1:2prod(L), i],V[:,i],L,K);
+        OUTJ += anti_diagonal_sum(Ub[2prod(L)+1:3prod(L),i],V[:,i],L,K);
+        OUTK += anti_diagonal_sum(Ub[3prod(L)+1:4prod(L),i],V[:,i],L,K);
     end
 
     count = count_copy_times(vec(dims))
 
-    OUTP = OUTP ./ count;
+    OUTP .= 0.25 .* (OUTP .+ invi.(OUTI) .+ invj.(OUTJ) .+ invk.(OUTK) ) ./ count;
 
-    return PadOp(OUTP,nin=dims_in,npad=dims_pad,flag="adj");
+    return OUTP 
 end
 
 """

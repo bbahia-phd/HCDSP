@@ -1,18 +1,24 @@
-cd(joinpath(homedir(),"projects"))
+pwd()
+
+dev_dir="/dev/Breno_GOM/projects/";
+
+cd(dev_dir)
+#cd(joinpath(homedir(),"projects"))
+
 pwd()
 
 using Pkg
-Pkg.activate(joinpath(homedir(),"projects/HCDSP/"))
+Pkg.activate(joinpath(dev_dir,"HCDSP/"))
 Pkg.status()
 
 using Revise
 
 using FFTW
-using HCDSP
 using PyPlot
 using LinearAlgebra
 using StatsBase,Statistics
 using SeisMain, SeisPlot
+using HCDSP
 
 params_zx = (ot=0.0, dt=0.004, nt=100, ox1=0.0, dx1=10.0,
             nx1=40, ox2=0.0, dx2=10.0, nx2=40, ox3=0.0, dx3=10.0,
@@ -131,20 +137,21 @@ for k in 1:kmax
             r3y[r,p,k] = quality(imagj.(tmp),imagj.(dc));
             r3z[r,p,k] = quality(imagk.(tmp),imagk.(dc));
         end       
-        @show [kk perc mean(r1[:,p,k],dims=1) mean(r2[:,p,k],dims=1) mean(r3[:,p,k],dims=1)]    
+        @show [kk perc mean(r1x[:,p,k],dims=1) mean(r2x[:,p,k],dims=1) mean(r3x[:,p,k],dims=1)]
+        @show [kk perc mean(r1y[:,p,k],dims=1) mean(r2y[:,p,k],dims=1) mean(r3z[:,p,k],dims=1)]    
+        @show [kk perc mean(r1y[:,p,k],dims=1) mean(r2y[:,p,k],dims=1) mean(r3z[:,p,k],dims=1)]    
     end
 end
 
 using HDF5
 
-fname = joinpath(homedir(),"projects/HCDSP/data/hcdsp_qssa_compare_reconstruction.h5")
-fid = h5open(fname, "w")
+fname = joinpath(dev_dir,"HCDSP/data/hcdsp_qssa_compare_reconstruction.h5")
+fid   = h5open(fname, "w")
 
 create_group(fid,"gains")
-fid["gains"]["svd"] = r1;
-fid["gains"]["rqr"] = r2;
+fid["gains"]["svd"]  = r1;
+fid["gains"]["rqr"]  = r2;
 fid["gains"]["lanc"] = r3;
 
 close(fid)
-
 #EOF
