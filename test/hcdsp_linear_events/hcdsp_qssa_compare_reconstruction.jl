@@ -148,10 +148,20 @@ using HDF5
 fname = joinpath(dev_dir,"HCDSP/data/hcdsp_qssa_compare_reconstruction.h5")
 fid   = h5open(fname, "w")
 
-create_group(fid,"gains")
-fid["gains"]["svd"]  = r1;
-fid["gains"]["rqr"]  = r2;
-fid["gains"]["lanc"] = r3;
+create_group(fid,"gains/svd")
+fid["gains"]["svd"]["x"]  = r1x;
+fid["gains"]["svd"]["y"]  = r1y;
+fid["gains"]["svd"]["z"]  = r1z;
+
+create_group(fid,"gains/rqr")
+fid["gains"]["rqr"]["x"]  = r2x;
+fid["gains"]["rqr"]["y"]  = r2y;
+fid["gains"]["rqr"]["z"]  = r2z;
+
+create_group(fid,"gains/lanc")
+fid["gains"]["lanc"]["x"] = r3x;
+fid["gains"]["lanc"]["y"] = r3y;
+fid["gains"]["lanc"]["z"] = r3z;
 
 close(fid)
 #EOF
