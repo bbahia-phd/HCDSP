@@ -1,0 +1,28 @@
+pwd()
+
+using Pkg
+Pkg.activate("./../")
+Pkg.status()
+
+using Revise
+using HDF5
+using PyPlot
+using StatsBase,Statistics
+
+fname="./hcdsp_qssa_compare_reconstruction.h5"
+fid=h5open(fname,"r")
+
+# extract gains
+lx = read(fid["gains"]["lanc"]["x"])
+ly = read(fid["gains"]["lanc"]["y"])
+lz = read(fid["gains"]["lanc"]["z"])
+
+qx = read(fid["gains"]["rqr"]["x"])
+qy = read(fid["gains"]["rqr"]["y"])
+qz = read(fid["gains"]["rqr"]["z"])
+
+sx = read(fid["gains"]["svd"]["x"])
+sy = read(fid["gains"]["svd"]["y"])
+sz = read(fid["gains"]["svd"]["z"])
+
+close(fid)
