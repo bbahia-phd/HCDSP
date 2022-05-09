@@ -150,22 +150,22 @@ function fast_qssa_lanc(IN,k)
 
     A(x,i;kwargs...) = i == 1 ? fwd(x) : adj(x)
 
-    U, Bk, V = lanbpro(A,k,m=prod(L),n=prod(K),qflag=true)
-    # U, _, _ = HCDSP.lanbpro(A,k,m=prod(L),n=prod(K))
+    #U, Bk, V = lanbpro(A,k,m=prod(L),n=prod(K),qflag=true)
+    U, _, _ = HCDSP.lanbpro(A,k,m=prod(L),n=prod(K),qflag=true)
 
-    Ub = U*Bk;
+    #Ub = U*Bk;
 
     # do fast anti-diagonal averaging using rank-1 approx
-    for i in 1:k
-        out += anti_diagonal_summation(Ub[:,i],V[:,i],L,K);
-    end
+    # for i in 1:k
+    #     out += anti_diagonal_summation(Ub[:,i],V[:,i],L,K);
+    # end
 
     # # do fast anti-diagonal averaging using rank-1 approx
-    # for i in 1:k
-    #     u = @view U[:,i]
-    #     v = A(u,2);
-    #     out += anti_diagonal_summation(u,v,L,K);
-    # end
+    for i in 1:k
+        u = @view U[:,i]
+        v = A(u,2);
+        out += anti_diagonal_sum(u,v,L,K);
+    end
 
     count = count_copy_times(vec(dims))
 
@@ -289,7 +289,7 @@ function fast_qssa_qr(IN::AbstractArray{Quaternion{T}},k) where T
 
         t = qmbh_multiply(IN,q,flag="adj");
 
-        OUT .+= anti_diagonal_summation(q,t,L,K);        
+        OUT .+= anti_diagonal_sum(q,t,L,K);        
     end
 
     count = count_copy_times(vec(dims))

@@ -74,10 +74,12 @@ p,sv,sh = get_mode_data();
 # mixed observed displacements
 dzz,dzy,dzx = mix(p,sv,sh);
 
-fmin = 0.0; fmax = 100.0; dt = 0.004;
+fmin = 0.0; fmax = 80.0; dt = 0.004;
 
 # Define operator to act on a frequency slice d
-imp_ssa(d,k) = HCDSP.imputation_op(d,SVDSSAOp,(k);iter=10)
+imp_ssa(d,k)   = HCDSP.imputation_op(d,HCDSP.fast_ssa_lanc,  (k); iter=10)
+imp_qssa(d,k)  = HCDSP.imputation_op(d,HCDSP.fast_qssa_lanc, (k); iter=10)
+imp_aqssa(d,k) = HCDSP.imputation_op(d,HCDSP.fast_aqssa_lanc,(k); iter=10)
 
 # ranks to test
 K = 1:2:50;
@@ -88,7 +90,7 @@ percs = 10:10:90;
 pmax = length(percs);
 
 # number of realizations
-rmax = 20;
+rmax = 10;
 
 # reconstruction gains
 rx = zeros(rmax,pmax,kmax);
@@ -98,6 +100,13 @@ rz = zeros(rmax,pmax,kmax);
 qx = zeros(rmax,pmax,kmax);
 qy = zeros(rmax,pmax,kmax);
 qz = zeros(rmax,pmax,kmax);
+
+aqx = zeros(rmax,pmax,kmax);
+aqy = zeros(rmax,pmax,kmax);
+aqz = zeros(rmax,pmax,kmax);
+
+# SNRs
+snrx,snry,snrz=0.8,1.0,1.2;
 
 for k in 1:kmax
     # Get the rank
@@ -112,9 +121,9 @@ for k in 1:kmax
         for r in 1:rmax
 
             # Add noise
-            dnx = SeisAddNoise(dzx, -2.0, db=true, L=3);
-            dny = SeisAddNoise(dzy, -2.0, db=true, L=3);
-            dnz = SeisAddNoise(dzz, -2.0, db=true, L=3);
+            dnx = SeisAddNoise(dzx, snrx, db=true, L=3);
+            dny = SeisAddNoise(dzy, snry, db=true, L=3);
+            dnz = SeisAddNoise(dzz, snrz, db=true, L=3);
             
             # Temporary Quaternion
             Qt = quaternion(dnx,dny,dnz);
@@ -128,7 +137,8 @@ for k in 1:kmax
             Zo = fx_process(imagk.(Qt),dt,fmin,fmax,imp_ssa,(k))
 
             # Call fx_process with Q imputation
-            Qo = fx_process(Qt,dt,fmin,fmax,imp_ssa,(2k))
+            Qo = fx_process(Qt,dt,fmin,fmax,imp_qssa,(k))
+            Qa = fx_process(Qt,dt,fmin,fmax,imp_aqssa,(k))
             
             # Get quality
             rx[r,p,k] = quality(Xo,dzx);
@@ -139,9 +149,13 @@ for k in 1:kmax
             qy[r,p,k] = quality(imagj.(Qo),dzy);
             qz[r,p,k] = quality(imagk.(Qo),dzz);
 
+            aqx[r,p,k] = quality(imagi.(Qa),dzx);
+            aqy[r,p,k] = quality(imagj.(Qa),dzy);
+            aqz[r,p,k] = quality(imagk.(Qa),dzz);
         end       
         @show [kk perc mean(rx[:,p,k],dims=1) mean(ry[:,p,k],dims=1) mean(rz[:,p,k],dims=1)]
         @show [kk perc mean(qx[:,p,k],dims=1) mean(qy[:,p,k],dims=1) mean(qz[:,p,k],dims=1)]                
+        @show [kk perc mean(aqx[:,p,k],dims=1) mean(aqy[:,p,k],dims=1) mean(aqz[:,p,k],dims=1)]                
     end
 end
 
@@ -160,43 +174,47 @@ fid["gains/quater"]["x"] = qx;
 fid["gains/quater"]["y"] = qy;
 fid["gains/quater"]["z"] = qz;
 
+create_group(fid,"gains/quater")
+fid["gains/aquater"]["x"] = aqx;
+fid["gains/aquater"]["y"] = aqy;
+fid["gains/aquater"]["z"] = aqz;
+
 close(fid)
 
-# Average
-rxr = mean(rx,dims=1);
-ryr = mean(ry,dims=1);
-rzr = mean(rz,dims=1);
+# # Average
+# rxr = mean(rx,dims=1);
+# ryr = mean(ry,dims=1);
+# rzr = mean(rz,dims=1);
 
-rsdx = std(rx,dims=1);
-rsdy = std(ry,dims=1);
-rsdz = std(rz,dims=1);
+# rsdx = std(rx,dims=1);
+# rsdy = std(ry,dims=1);
+# rsdz = std(rz,dims=1);
 
-# Average
-qxr = mean(qx,dims=1);
-qyr = mean(qy,dims=1);
-qzr = mean(qz,dims=1);
+# # Average
+# qxr = mean(qx,dims=1);
+# qyr = mean(qy,dims=1);
+# qzr = mean(qz,dims=1);
 
-qsdx = std(qx,dims=1);
-qsdy = std(qy,dims=1);
-qsdz = std(qz,dims=1);
+# qsdx = std(qx,dims=1);
+# qsdy = std(qy,dims=1);
+# qsdz = std(qz,dims=1);
 
 
-gcf()
+# gcf()
 
-perc = 4; #1:9 -> 10:90
+# perc = 4; #1:9 -> 10:90
 
-close("all");
-clf();
-plot(K,rxr[1,perc,:]);
-plot(K,ryr[1,perc,:]);
-plot(K,rzr[1,perc,:]);
+# close("all");
+# clf();
+# plot(K,rxr[1,perc,:]);
+# plot(K,ryr[1,perc,:]);
+# plot(K,rzr[1,perc,:]);
 
-plot(K,qxr[1,perc,:]);
-plot(K,qyr[1,perc,:]);
-plot(K,qzr[1,perc,:]);
+# plot(K,qxr[1,perc,:]);
+# plot(K,qyr[1,perc,:]);
+# plot(K,qzr[1,perc,:]);
 
-gcf()
-
+# gcf()
 
 # close("all"); clf();
 
