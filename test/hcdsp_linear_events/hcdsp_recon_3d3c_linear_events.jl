@@ -164,13 +164,13 @@ read_write(file,"w";n=size(dzx),input=imagi.(Qt),T=Float32)
 
 ## Write SSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=Xo,T=Float32)
+read_write(file,"w";n=size(dzz),input=Zo,T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zy.bin")
 read_write(file,"w";n=size(dzy),input=Yo,T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=Zo,T=Float32)
+read_write(file,"w";n=size(dzx),input=Xo,T=Float32)
 
 ## Write QSSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zz.bin")
