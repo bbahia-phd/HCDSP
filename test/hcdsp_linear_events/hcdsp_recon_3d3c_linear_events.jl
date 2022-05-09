@@ -164,7 +164,7 @@ read_write(file,"w";n=size(dzx),input=imagi.(Qt))
 
 ## Write SSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=Xo)
+read_write(file,"w";n=size(dzz),input=Xo,T=Float32)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zy.bin")
 read_write(file,"w";n=size(dzy),input=Yo)
