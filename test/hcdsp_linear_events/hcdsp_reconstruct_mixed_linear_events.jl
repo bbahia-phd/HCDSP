@@ -175,8 +175,8 @@ for k in 1:kmax
             aqy[r,p,k] = quality(imagj.(Qa),dzy);
             aqz[r,p,k] = quality(imagk.(Qa),dzz);
         end       
-        @show [kk perc mean(rx[:,p,k],dims=1) mean(ry[:,p,k],dims=1) mean(rz[:,p,k],dims=1)]
-        @show [kk perc mean(qx[:,p,k],dims=1) mean(qy[:,p,k],dims=1) mean(qz[:,p,k],dims=1)]                
+        @show [kk perc mean(rx[:,p,k],dims=1)  mean(ry[:,p,k],dims=1)  mean(rz[:,p,k],dims=1)]
+        @show [kk perc mean(qx[:,p,k],dims=1)  mean(qy[:,p,k],dims=1)  mean(qz[:,p,k],dims=1)]                
         @show [kk perc mean(aqx[:,p,k],dims=1) mean(aqy[:,p,k],dims=1) mean(aqz[:,p,k],dims=1)]                
     end
 end
@@ -186,7 +186,7 @@ using HDF5
 file_path = "./HCDSP/data/hcdsp_recon_3d3c_linear_events"
 
 fname = joinpath(file_path,"hcdsp_reconstruct_mixed_linear_events.h5")
-fid = h5open(fname, "w")
+fid   = h5open(fname, "w")
 
 create_group(fid,"gains/real")
 fid["gains/real"]["x"] = rx;

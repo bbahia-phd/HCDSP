@@ -106,7 +106,7 @@ perc = 50;
 Qt .= decimate_traces(Qt,perc);
 
 # ranks to test
-k = 6;
+k = 8;
 
 # Component-wise processing
 Xo = fx_process(imagi.(Qt),dt,fmin,fmax,imp_ssa,(k));
@@ -115,7 +115,7 @@ Zo = fx_process(imagk.(Qt),dt,fmin,fmax,imp_ssa,(k));
 
 # Call fx_process with Q imputation
 Qo = fx_process(Qt,dt,fmin,fmax,imp_qssa,(k));
-Qa = fx_process(Qt,dt,fmin,fmax,imp_aqssa,(k+2));
+Qa = fx_process(Qt,dt,fmin,fmax,imp_aqssa,(12));
 
 # Get quality
 rx = quality(Xo,dzx)
@@ -132,13 +132,20 @@ aqz = quality(imagk.(Qa),dzz)
 
 n=10;
 clf();close("all")
-SeisPlotTX([dzz[:,:,n] imagk.(Qt)[:,:,n] Zo[:,:,n] imagk.(Qo)[:,:,n] imagk.(Qa)[:,:,n] (dzz .- imagk.(Qa))[:,:,n]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
+SeisPlotTX(
+    [dzx[:,:,n] imagi.(Qt)[:,:,n] Xo[:,:,n] imagi.(Qo)[:,:,n] imagi.(Qa)[:,:,n] (dzx .- Xo)[:,:,n] (dzx .- imagi.(Qo))[:,:,n] (dzx .- imagi.(Qa))[:,:,n]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
 
-n=15;
 clf();close("all")
-SeisPlotTX([dzz[:,n,:] imagk.(Qt)[:,n,:] Zo[:,n,:] imagk.(Qo)[:,n,:] imagk.(Qa)[:,n,:] (dzz .- imagk.(Qa))[:,n,:]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
+SeisPlotTX(
+    [dzy[:,:,n] imagj.(Qt)[:,:,n] Yo[:,:,n] imagj.(Qo)[:,:,n] imagj.(Qa)[:,:,n] (dzy .- Yo)[:,:,n] (dzy .- imagj.(Qo))[:,:,n] (dzy .- imagj.(Qa))[:,:,n]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
+
+clf();close("all")
+SeisPlotTX(
+    [dzz[:,:,n] imagk.(Qt)[:,:,n] Zo[:,:,n] imagk.(Qo)[:,:,n] imagk.(Qa)[:,:,n] (dzz .- Zo)[:,:,n] (dzz .- imagk.(Qo))[:,:,n] (dzz .- imagk.(Qa))[:,:,n]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
+gcf()
+
 
 file_path = "./HCDSP/data/hcdsp_recon_3d3c_linear_events"
 
