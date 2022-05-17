@@ -125,6 +125,7 @@ Generate up to five dimensional data consisting of irregular linear events.
 - `p2,p3,p4=[0, 0]`: Dip of events on the following dimensions
 - `amp=[1.0,-1.0]`: amplitudes for each linear event.
 - `f0=20.0`: central frequency of wavelet for each linear event.
+
 # Example
 ```julia
 julia> using SeisPlot
@@ -139,7 +140,7 @@ function SeisLinearIrregularEvents(; ot=0.0, dt=0.004, nt=500,
                         tau=[1.0,1.5],amp=[1.0,-1.0], f0=20.0)
 
 
-    w = ricker(dt=dt,f0=f0);
+    w  = ricker(dt=dt,f0=f0);
     nf = nextpow(2,nt);
     nw = length(w);
     t_delay = (nw-1)*dt/2;
@@ -150,6 +151,8 @@ function SeisLinearIrregularEvents(; ot=0.0, dt=0.004, nt=500,
     nx2 = length(x2);
     nx3 = length(x3);
     nx4 = length(x4);
+
+    (gx,gy) = ndgrid(x1,x2) 
     
     n_events = length(p1);
     d = zeros(Float64, nt, nx1, nx2, nx3, nx4);
@@ -158,27 +161,29 @@ function SeisLinearIrregularEvents(; ot=0.0, dt=0.004, nt=500,
     wrs = collect(0:1:nfh-1)*2*pi/(nf*dt);     # Frequency in rad/sec
 
     for ie = 1:n_events
-     for ix4 = 1:nx4
-      for ix3 = 1:nx3
-       for ix2 = 1:nx2
-        for ix1 = 1:nx1
-            for iw = 2:nfh-1
-                M1 = exp.(-im .* wrs[iw] * x1[ix1] * p1[ie] )
-                M2 = exp.(-im .* wrs[iw] * x2[ix2] * p2[ie] )
-                M3 = exp.(-im .* wrs[iw] * x3[ix3] * p3[ie] )
-                M4 = exp.(-im .* wrs[iw] * x4[ix4] * p4[ie] )
-                MT = exp.(-im .* wrs[iw] * (tau[ie]-t_delay))
-
-                D[iw:iw, ix1,ix2,ix3,ix4] .+= W[iw]*amp[ie]*M1*M2*M3*M4*MT
-                D[nf-iw+2,ix1,ix2,ix3,ix4] = conj(D[iw,ix1,ix2,ix3,ix4])
+        for ix4 = 1:nx4
+            for ix3 = 1:nx3
+                for ix2 = 1:nx2
+                    for ix1 = 1:nx1
+                        for iw = 2:nfh-1
+                            M1 = exp.(-im .* wrs[iw] * x1[ix1] * p1[ie] )
+                            M2 = exp.(-im .* wrs[iw] * x2[ix2] * p2[ie] )
+                            M3 = exp.(-im .* wrs[iw] * x3[ix3] * p3[ie] )
+                            M4 = exp.(-im .* wrs[iw] * x4[ix4] * p4[ie] )
+                            MT = exp.(-im .* wrs[iw] * (tau[ie]-t_delay))
+                
+                            D[iw:iw, ix1,ix2,ix3,ix4] .+= W[iw]*amp[ie]*M1*M2*M3*M4*MT
+                            D[nf-iw+2,ix1,ix2,ix3,ix4] = conj(D[iw,ix1,ix2,ix3,ix4])
+                        end
+                    end
+                end
             end
         end
-       end
-      end
-     end
     end
+
     d = ifft(D,1);
     d = real(d[1:nt,:,:,:,:]);
+
     # Add extent header
     # extent = SeisMain.Extent(convert(Int32, nt), convert(Int32, nx1),
     #                         convert(Int32, nx2), convert(Int32, nx3),
