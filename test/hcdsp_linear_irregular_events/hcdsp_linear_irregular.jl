@@ -4,8 +4,10 @@ Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
 Pkg.status()
 
 using Revise
+
 using LazyGrids
 using HCDSP
+using PyPlot
 using SeisPlot, SeisMain
 
 # jitter: formal definition
@@ -46,8 +48,10 @@ for i in 1:nx
     jy[i] = 0.5*(1-γy) + γy * i + ϵyi
 end
 
-# The case above is just "jittered sampling". If you set ξ=0, there is no jitter, and the undersampling scheme is just regular undersampling.
+# The case above is just "jittered sampling". If you set ξ=0, there is no jitter, and the undersampling scheme is just regular undersampling, e.g. taking every other trace means γ=2.
+
 # The work of Hennenfent and Herrmann show the impact of ξ.
+
 # Optimally-jittered undersampling sets the jitter parameter equal to the undersampling parameter: ξ = γ. Such a configuration is optimal because it creates the most favourable contitions for recovery with a localized transform.
 
 # Ok. This is how Rongzhi is doing:
@@ -60,9 +64,11 @@ my = collect(0:ny-1).*dy;
 
 (gmx,gmy) = ndgrid(mx,my)
 
+# random perturbations in x and y
 jx = rand(size(gmx)...) .* 2 .- 1
 jy = rand(size(gmy)...) .* 2 .- 1
 
+# irregular grid
 jmx = gmx .+ jx; jmx[1,:] .= abs.(jmx[1,:]);
 jmy = gmy .+ jy; jmy[:,1] .= abs.(jmy[:,1]);
 
@@ -74,4 +80,4 @@ amp = [1,-1,1];
 
 f0 = 20.0;
 
-d = HCDSP.SeisLinearIrregularEvents();
+d = HCDSP.SeisLinearIrregularEvents(x1=);

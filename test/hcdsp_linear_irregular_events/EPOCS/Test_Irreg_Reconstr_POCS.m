@@ -30,7 +30,6 @@ jy = (rand(size(MY))*2-1) * 1 *dy;
 MY2 = MY + jy;
 MY2(:,1) = abs(MY2(:,1)); % avoid the first coordinate is a negative value
 
-
 %% Linear events
 px = [1/4000, 1/9000, -1/4000];          % ray parameters of 3D plane waves
 py = [1/4000,-1/4000, -1/6000];
