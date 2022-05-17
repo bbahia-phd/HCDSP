@@ -81,7 +81,7 @@ p,sv,sh = get_mode_data();
 # mixed observed displacements
 dzz,dzy,dzx = mix(p,sv,sh);
 
-fmin = 0.0; fmax = 80.0; dt = 0.004;
+fmin = 0.0; fmax = 60.0; dt = 0.004;
 
 # Define operator to act on a frequency slice d
 imp_ssa(d,k)   = HCDSP.imputation_op(d,HCDSP.fast_ssa_lanc,  (k); iter=10)

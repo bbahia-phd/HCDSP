@@ -96,7 +96,7 @@ p,sv,sh = get_mode_data();
 # mixed observed displacements
 dzz,dzy,dzx = mix(p,sv,sh);
 
-fmin = 0.0; fmax = 80.0; dt = 0.004;
+fmin = 0.0; fmax = 60.0; dt = 0.004;
 
 # Define operator to act on a frequency slice d
 imp_ssa(d,k)   = HCDSP.imputation_op(d,HCDSP.fast_ssa_lanc,  (k); iter=10)
@@ -104,7 +104,7 @@ imp_qssa(d,k)  = HCDSP.imputation_op(d,HCDSP.fast_qssa_lanc, (k); iter=10)
 imp_aqssa(d,k) = HCDSP.imputation_op(d,HCDSP.fast_aqssa_lanc,(k); iter=10)
 
 # ranks to test
-K = 1:2:50;
+K = 1:2:25;
 kmax = length(K);
 
 # decimations to test
@@ -198,7 +198,7 @@ fid["gains/quater"]["x"] = qx;
 fid["gains/quater"]["y"] = qy;
 fid["gains/quater"]["z"] = qz;
 
-create_group(fid,"gains/quater")
+create_group(fid,"gains/aquater")
 fid["gains/aquater"]["x"] = aqx;
 fid["gains/aquater"]["y"] = aqy;
 fid["gains/aquater"]["z"] = aqz;
