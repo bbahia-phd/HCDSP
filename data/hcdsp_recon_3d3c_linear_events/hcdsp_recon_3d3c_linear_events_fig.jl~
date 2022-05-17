@@ -1,0 +1,12 @@
+pwd()
+
+cd("./hcdsp_recon_3d3c_linear_events")
+
+using Pkg
+Pkg.activate("./../../")
+Pkg.status()
+
+using Revise
+using HDF5
+using PyPlot
+using StatsBase,Statistics
