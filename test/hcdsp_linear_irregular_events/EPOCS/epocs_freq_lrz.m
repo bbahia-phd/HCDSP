@@ -72,7 +72,7 @@ for k = k_low:k_high
         I = find(A<th(iter)); A(I)=0; Y = A.*exp(1i*Angle);
         
         y = ifft2(Y); y = y(1:nx1,1:nx2);
-        yy1 = interpolator_Kaiser_sinc_3D_freq(y,x_irreg,x_reg,3,10,0);
+        yy1 = interpolator_Kaiser_sinc_3D_freq(y,  x_irreg,x_reg,3,10,0);
         yy2 = interpolator_Kaiser_sinc_3D_freq(yy1,x_irreg,x_reg,3,10,1);
         yold = y;
         

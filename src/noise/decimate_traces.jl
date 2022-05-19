@@ -16,3 +16,15 @@ function decimate_traces(IN::AbstractArray{T},perc::Real) where {T}
     
     return reshape(OUT,n)
 end
+
+function decimate_indexes(IN::AbstractArray{T},perc::Real) where {T}
+
+    # Preliminares
+    n = size(IN)  
+    ntraces = prod(n[2:end])
+       ndec = round(Int,ntraces*perc/100);
+
+    # Indexes for decimated traces
+    return sort(sample(1:ntraces,ndec; replace=false,ordered=false))
+
+end

@@ -129,16 +129,14 @@ Generate up to five dimensional data consisting of irregular linear events.
 # Example
 ```julia
 julia> using SeisPlot
-julia> d = SeisLinearIrregularEvents(); SeisPlotTX(d);
+julia> d = SeisLinearIrregularEvents3D(); SeisPlotTX(d);
 ```
 """
-function SeisLinearIrregularEvents(; ot=0.0, dt=0.004, nt=500,
-                        x1 = collect(0:30-1) .* 10,
-                        x2 = collect(0:30-1) .* 10,
-                        x3 = 0, x4 = 0,
-                        p1=[0.0001,-0.0003],p2=[0.,0.],p3=[0.,0],p4=[0.,0.],
+function SeisLinearIrregularEvents3D(x1, x2; ot=0.0, dt=0.004, nt=500,
+                        p1=[0.0001,-0.0003],p2=[0.,0.],
                         tau=[1.0,1.5],amp=[1.0,-1.0], f0=20.0)
 
+    @assert size(x1) == size(x2)
 
     w  = ricker(dt=dt,f0=f0);
     nf = nextpow(2,nt);
@@ -147,42 +145,29 @@ function SeisLinearIrregularEvents(; ot=0.0, dt=0.004, nt=500,
     w = vcat(w, zeros(nf-nw));
     W = fft(w);
 
-    nx1 = length(x1);
-    nx2 = length(x2);
-    nx3 = length(x3);
-    nx4 = length(x4);
-
-    (gx,gy) = ndgrid(x1,x2) 
-    
+    nx1,nx2 = size(x1)
+   
     n_events = length(p1);
-    d = zeros(Float64, nt, nx1, nx2, nx3, nx4);
-    D = zeros(Complex{Float64}, nf, nx1, nx2, nx3, nx4);
+    d = zeros(Float64, nt, nx1, nx2);
+    D = zeros(Complex{Float64}, nf, nx1, nx2);
     nfh = round(Int, floor(nf/2)) + 1;
     wrs = collect(0:1:nfh-1)*2*pi/(nf*dt);     # Frequency in rad/sec
 
-    for ie = 1:n_events
-        for ix4 = 1:nx4
-            for ix3 = 1:nx3
-                for ix2 = 1:nx2
-                    for ix1 = 1:nx1
-                        for iw = 2:nfh-1
-                            M1 = exp.(-im .* wrs[iw] * x1[ix1] * p1[ie] )
-                            M2 = exp.(-im .* wrs[iw] * x2[ix2] * p2[ie] )
-                            M3 = exp.(-im .* wrs[iw] * x3[ix3] * p3[ie] )
-                            M4 = exp.(-im .* wrs[iw] * x4[ix4] * p4[ie] )
-                            MT = exp.(-im .* wrs[iw] * (tau[ie]-t_delay))
-                
-                            D[iw:iw, ix1,ix2,ix3,ix4] .+= W[iw]*amp[ie]*M1*M2*M3*M4*MT
-                            D[nf-iw+2,ix1,ix2,ix3,ix4] = conj(D[iw,ix1,ix2,ix3,ix4])
-                        end
-                    end
-                end
-            end
+    for iw = 2:nfh-1
+        T = zeros(Complex{Float64},nx1,nx2)
+        for ie = 1:n_events
+            M1 = exp.(-im .* wrs[iw] .* x1 .* p1[ie] )
+            M2 = exp.(-im .* wrs[iw] .* x2 .* p2[ie] )
+            MT = exp.(-im .* wrs[iw] .* (tau[ie]-t_delay))
+
+            T .+= W[iw].*amp[ie].*M1.*M2.*MT
         end
+        D[iw,:,:] .+= T
+        D[nf-iw+2,:,:] .= conj(D[iw,:,:])
     end
 
     d = ifft(D,1);
-    d = real(d[1:nt,:,:,:,:]);
+    d = real(d[1:nt,:,:]);
 
     # Add extent header
     # extent = SeisMain.Extent(convert(Int32, nt), convert(Int32, nx1),
@@ -195,21 +180,7 @@ function SeisLinearIrregularEvents(; ot=0.0, dt=0.004, nt=500,
     #                         convert(Float32,dx4), "Time", "ix1", "ix2", "ix3",
     #                         "ix4", "s", "index", "index", "index", "index", "")
 
-    if nx4 == 1 && nx3 == 1 && nx2 == 1 && nx1 == 1
-        d = reshape(d, round(Int,nt))
-    elseif nx4 == 1 && nx3 == 1 && nx2 == 1
-        d = reshape(d, round(Int, nt), round(Int, nx1))
-    elseif nx4 == 1 && nx3 == 1
-        d = reshape(d, round(Int, nt), round(Int, nx1),
-                    round(Int, nx2))
-    elseif nx4 == 1
-        d = reshape(d, round(Int, nt), round(Int, nx1),
-                    round(Int, nx2), round(Int, nx3))
-    else
-        d = reshape(d, round(Int, nt), round(Int, nx1),
-                    round(Int, nx2), round(Int, nx3),
-                    round(Int, nx4))
-    end
+    d = reshape(d, round(Int, nt), round(Int, nx1), round(Int, nx2))
 #    return d, extent
 return d
 end
