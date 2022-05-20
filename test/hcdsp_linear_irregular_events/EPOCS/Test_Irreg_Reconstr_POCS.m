@@ -133,8 +133,6 @@ title('observed')
 xlabel('Wavenumber');
 ylabel('Frequency');
 
-
-
 %%
 T11 = reshape(T,nt,nx,ny);
 TT = squeeze(T11(1,:,:));

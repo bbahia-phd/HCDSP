@@ -30,13 +30,11 @@ if type ==0  % from regular to irregular
         
         min_ja = max(ja-N,1);
         max_ja = min(ja+N,nh2);
-   
-
-        
+       
         for ia = min_ia:1:max_ia 
             for ja = min_ja:1:max_ja
                 
-                t  = (x_irreg(k,1) - x_reg(ia,ja,1))/dh1;
+                t = (x_irreg(k,1) - x_reg(ia,ja,1))/dh1;
                 u = (x_irreg(k,2) - x_reg(ia,ja,2))/dh2;
                 
                 Wt = Kaiser_sinc(t,N+1,a);
@@ -69,7 +67,7 @@ else % %==1: from irregular to regular
         for ia = min_ia:1:max_ia 
             for ja = min_ja:1:max_ja
                 
-                t  = (x_irreg(k,1) - x_reg(ia,ja,1))/dh1;
+                t = (x_irreg(k,1) - x_reg(ia,ja,1))/dh1;
                 u = (x_irreg(k,2) - x_reg(ia,ja,2))/dh2;
                 
                 Wt = Kaiser_sinc(t,N+1,a);

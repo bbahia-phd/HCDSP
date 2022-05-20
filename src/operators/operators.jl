@@ -10,10 +10,15 @@ export fwdPatchOp,
     Sampling1D,
     Sampling,
     HankelOp,
-    AveragingOp
+    AveragingOp,
+    kaiser_sinc,
+    interp_ks3d,
+    interp_ks3d_fwd,
+    interp_ks3d_adj
 
 include("PatchOp.jl")
 include("PadOp.jl")
 include("ImputationOp.jl")
 include("SamplingOp.jl")
 include("HankelOp.jl")
+include("InterpolationOp.jl")

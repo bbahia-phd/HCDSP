@@ -85,7 +85,7 @@ function backtrack_iterable(iter, state, out;
         # Function handle for LS misfit as function of step-size α
         ϕ = get_ϕ(iter.L, iter.d, state.x, (proj-state.x), out; W = W)
         return BTIterable(ϕ,
-                           dot(state.g,(proj-state.x)),
+                           real(dot(state.g,(proj-state.x))),
                            state.δ_new,
                            α_0,
                            σ_1,

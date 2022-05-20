@@ -22,7 +22,12 @@ export read_write,
         lanbpro,
         anti_diagonal_sum,
         anti_diagonal_summation,
-        anti_diagonal_summation_slow        
+        anti_diagonal_summation_slow,
+        thresh_sched,
+        _schedule,
+        _sched,
+        get_max_ft_coeff,
+        get_max_abs    
 
 include("puck.jl")
 include("ricker.jl")
@@ -36,3 +41,4 @@ include("hankel.jl")
 include("mbh_multiply.jl")
 include("qmbh_multiply.jl")
 include("lanczos.jl")
+include("threshold_routines.jl")

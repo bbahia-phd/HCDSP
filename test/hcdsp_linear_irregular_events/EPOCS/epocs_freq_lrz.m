@@ -40,7 +40,7 @@ nk2 = 2^nextpow2(nx2);
 
 % Min and max freq indeces for the reconstruction
 
-k_low = max(floor(f_low*dt*nf) + 1,2);
+k_low  = max(floor(f_low*dt*nf) + 1,2);
 k_high = min(floor(f_high*dt*nf) + 1,nf/2);
 
 Dout = zeros(nf,nx1,nx2);
@@ -79,15 +79,17 @@ for k = k_low:k_high
         y = xadj + y - yy2;
         
         dif1 = y-yold;
-        dif2 = y-xtrue;
         c1 = sum( (abs(dif1(:))).^2);
-        c2 = sum( (abs(dif2(:))).^2);
         c  = sum( (abs(y(:))).^2);
-        ct = sum( (abs(xtrue(:))).^2);
         E1 = c1/c;
-        E2 = c2/ct;
         e1(k-k_low+1,iter) = E1;
+
+        dif2 = y-xtrue;
+        c2 = sum( (abs(dif2(:))).^2);
+        ct = sum( (abs(xtrue(:))).^2);
+        E2 = c2/ct;
         e2(k-k_low+1,iter) = E2;
+
         iter = iter + 1;
         
     end

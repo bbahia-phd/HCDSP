@@ -28,7 +28,7 @@ struct PGDLSIterable{Fwd, Adj, Tp, P, Td, Tx, T}
 end
 
 # State
-mutable struct PGDLSState{Td, Tx, T <: Real}
+mutable struct PGDLSState{Td, Tx, T <: Number}
     # Arrays
     x::Tx  # current solution
     xo::Tx # old solution
@@ -56,7 +56,7 @@ function pgdls_iterable(L, Lt, d, x, proj, args...;
 end
 
 # iterate overload for zero iteration
-function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}) where {Fwd,Adj,Tp,P,Td,T,Tx <: AbstractArray{T}}
+function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}) where {Fwd,Adj,Tp,P,Td,T,Tx <: AbstractArray}
 
     # counter
     it = 0;
@@ -84,7 +84,7 @@ function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}) where {Fwd,Adj,Tp,P,
 end
 
 # subsequent iterations
-function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}, state::PGDLSState{Td,Tx,T}) where {Fwd, Adj, Tp,P, T,Td <: AbstractArray{T}, Tx <: AbstractArray{T}}
+function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}, state::PGDLSState{Td,Tx,T}) where {Fwd, Adj, Tp,P, T,Td <: AbstractArray, Tx <: AbstractArray}
 
     # update iteration count
     state.it += 1
