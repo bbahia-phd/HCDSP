@@ -31,13 +31,14 @@ dx = grid_reg[2,1,1] - grid_reg[1,1,1]
 dy = grid_reg[1,2,2] - grid_reg[1,1,2]
 
 # number of regular grid points along x and y
-nx,ny,_ = size(grid_reg)
+nt,nx,ny = size(d)
+#@assert nx,ny,2 == size(grid_reg)
 
 # number of traces observed in d
 nk = size(grid_irr,1)
 
 # allocate drec
-drec = zeros(eltype(d),nk)
+drec = zeros(eltype(d),nt,nk)
 
 # loop over every observed position
 for k in 1:nk
@@ -65,7 +66,7 @@ for k in 1:nk
             Wu = kaiser_sinc(u,N+1,a) # this is a scalar (real or complex?)
 
             # fill drec
-            drec[k] += Wt*Wu*d[ix,iy]
+            drec[:,k] += Wt*Wu*d[:,ix,iy]
         end
     end
 end
@@ -86,11 +87,11 @@ dy = grid_reg[1,2,2] - grid_reg[1,1,2]
 nx,ny,_ = size(grid_reg)
 
 # number of traces observed in d
-#nt,nk = size(d)
+nt,nk = size(d)
 nk = size(grid_irr,1)
 
 # allocate drec
-drec = zeros(eltype(d),nx,ny)
+drec = zeros(eltype(d),nt,nx,ny)
 
 # loop over every observed position
 for k in 1:nk
@@ -118,7 +119,7 @@ for k in 1:nk
             Wu = kaiser_sinc(u,N+1,a) # this is a scalar (real or complex?) real I think
 
             # fill drec
-            drec[ix,iy] += Wt*Wu*d[k]
+            drec[:,ix,iy] += Wt*Wu*d[:,k]
         end
     end
 end

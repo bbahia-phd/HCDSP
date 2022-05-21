@@ -106,21 +106,69 @@ htt[:,2] = jmy_obs
 din = copy(dio2)
 #  dr is the regular desired data)
 
+##########################################################################
 # Define a patching operator
-function proj!(state, (sched))
+function proj!(state, (dt,fmin,fmax,rank))
     # output allocation
     out = copy(state.x)
     
     # get iteration:
-    it = state.it;
+#    it = state.it;
     
     # fk_thresh
-    out .= fk_thresh(out,sched[it])
+    out .= fx_process(out,dt,fmin,fmax,fast_ssa_lanc,(rank))
     
     # Return
     return out
 end
 
+fwd(x) = interp_ks3d(x,htt,h,3,10,"fwd")
+adj(x) = interp_ks3d(x,htt,h,3,10,"adj")
+
+dadj = adj(din);
+
+# Step-size selection
+α = 1.0;
+
+# Number iterations
+K = 15;
+
+# f-x process
+dt=0.004; fmin=0; fmax=80; rank=5;
+
+# Reconstruction via PGD+SSA (I-MSSA)
+out_ssa,it_ssa  = pgdls!(fwd, adj, din,
+                         zero(dadj), proj!, (dt,fmin,fmax,rank),
+                         ideal=d0,
+                         α = α, verbose=true,
+                         maxIter=K, tol=1e-6);   
+
+# Reg param
+λ = 2.0;
+
+# Reconstruction via RED(FP)+SSA
+red_ssa,red_it_ssa  = red_fp!(fwd, adj, din,
+                              zero(dadj), λ, proj!, (dt,fmin,fmax,rank),
+                              ideal=d0,
+                              verbose=true,
+                              max_iter_o=K,
+                              max_iter_i=5,
+                              tol=1e-6);
+
+# ADMM-param
+β = 0.5;
+
+# Reconstruction via RED(ADMM)+SSA
+admm_ssa,admm_it_ssa  = red_admm!(fwd, adj, din,
+                                  zero(dadj), λ, β, proj!, (dt,fmin,fmax,rank),
+                                  ideal=d0,
+                                  verbose=true,
+                                  max_iter_o=K,
+                                  max_iter_i1=10,
+                                  max_iter_i2=1,
+                                  tol=1e-6);
+
+##########################################################################
 function fk_thresh(IN::AbstractArray,sched::AbstractFloat)
 
     out = copy(IN)
@@ -143,13 +191,72 @@ function fk_thresh(IN::AbstractArray,sched::AbstractFloat)
     return out
 end
 
-Pi,Pf,K=99.9,1,101
+# Define a patching operator
+function proj!(state, (sched))
+    # output allocation
+    out = copy(state.x)
+    
+    # get iteration:
+    it = state.it;
+    
+    # fk_thresh
+    out .= fk_thresh(out,sched[it])
+    
+    # Return
+    return out
+end
 
 fwd(x) = interp_ks3d(x,htt,h,3,10,"fwd")
 adj(x) = interp_ks3d(x,htt,h,3,10,"adj")
 
-function fx_pgd_recon(in::AbstractArray{T},fwd::Function,adj::Function,Pi::Real,Pf::Real,K::Int) where {T} 
+dadj = adj(din);
 
+# Step-size selection
+α = 0.2;
+
+# threshold scheduler
+Pi,Pf,K=99,1,101
+sched = _sched(dadj,K,Pi,Pf,"exp") ./ 10;
+
+# Deblending by inversion    
+out_fkt,it_fkt  = pgdls!(fwd, adj, din,
+                zero(dadj), proj!, (sched);
+                ideal=d0,
+                α = α, verbose=true,
+                maxIter=K, tol=1e-6);   
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#=
+function fx_pgd_recon(in::AbstractArray{T},fwd::Function,adj::Function,Pi::Real,Pf::Real,K::Int) where {T} 
 
     # takes as input the frequency slice and prepare the fwd and adj operators
     dadj = adj(in); # this is a frequency slice nx × ny
@@ -157,17 +264,30 @@ function fx_pgd_recon(in::AbstractArray{T},fwd::Function,adj::Function,Pi::Real,
     nx,ny = size(dadj);
 
     # threshold scheduler
-    sched = _sched(dadj,K,Pi,Pf,"exp") ./ 30;
+    sched = _sched(dadj,K,Pi,Pf,"linear");
 
     # Step-size selection
-    α = 0.1;
+    α = 0.4;
 
+#=
+    out = copy(dadj);
+
+    for i in 1:K
+        out .=  fk_thresh(out,sched[i]);
+
+        yy1 = fwd(out);
+        yy2 = adj(yy1);
+
+        out .= dadj .+ out .- yy2
+
+    end    
+=#
     # Deblending by inversion    
     out,_  = pgdls!(fwd, adj, in,
-                    dadj, proj!, (sched);
+                    zero(dadj), proj!, (sched);
                     ideal=zero(dadj),
                     α = α, verbose=false,
-                    maxIter=K, tol=1e-6);
+                    maxIter=K, tol=1e-6);   
 
     return out
 end
@@ -175,6 +295,7 @@ end
 fmin=0; fmax=80; 
 
 out = HCDSP.fx_irregular_process(din,dt,fmin,fmax,htt,h,fx_pgd_recon,(fwd,adj,Pi,Pf,K)...);
+=#
 
 #=
 # The dot product test of the interpolator
@@ -196,8 +317,6 @@ end
    
 interp_dot_prod_test()
 =#
-
-
 
 #=
 # jitter: formal definition

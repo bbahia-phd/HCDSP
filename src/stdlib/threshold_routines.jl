@@ -18,7 +18,7 @@ Define threshold schedule.
 function thresh_sched(IN::AbstractArray,K::Int,Pi::Real,Pf::Real,flag::String)
 
     # get max FT coeff among patches
-    @show cmax = get_max_ft_coeff(IN)
+    cmax = get_max_ft_coeff(IN)
 
     # output vector of coefficients
     out = zeros(eltype(cmax),K)
