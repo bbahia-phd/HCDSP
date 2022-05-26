@@ -135,13 +135,8 @@ function red_fp!(L, Lt, d, x, μ, proj, args...;
     reserve!(hist, :snr   , max_iter_o+1)
     
     # define iterable
-    iter = redfp_iterable(L,
-                          Lt,
-                          d,
-                          x,
-                          μ,
-                          proj,
-                          args...;
+    iter = redfp_iterable(L, Lt, d, x, μ,
+                          proj, args...;
                           ideal = ideal,
                           int_it = max_iter_i,
                           ε = ε,

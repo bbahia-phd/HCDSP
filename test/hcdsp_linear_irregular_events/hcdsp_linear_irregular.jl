@@ -54,7 +54,7 @@ x = jmx[:,1]
 # see irregular data (can plot anything like this tho)
 mat"wigb($(di[:,1,:]),1,$x,$t)"
 
-# decimate %
+# decimate
 perc1=50;
 
 # indexes
@@ -64,28 +64,28 @@ indx2=setdiff(indx0,indx1)             # observed indexes
 
 # (random) decimating regular data (data regular observed = dro)
 dro = reshape(dr,nt,:);
-dro[:,indx1] .= zero(eltype(dro))
+dro[:,indx1] .= zero(eltype(dro));
 
 # (random) decimating irregular data (data irregular observerd = dio)
 dio = reshape(di,nt,:);
-dio[:,indx1] .= zero(eltype(dio))
+dio[:,indx1] .= zero(eltype(dio));
 
 # Sampling operator (no need)
-T = SamplingOp(dio)
+T = SamplingOp(dio);
 
 # extract the real irregular without binning
-dio2 = dio[:,indx2]
+dio2 = dio[:,indx2];
  
 # how is this binning dio2: dio2 is a bunch of (observed) traces together in matrix form (albeit 3D)
 # You are placing dio2 into regular bins in the dio array. This would be the binning step, since dio was gridded accordingly.
-dio[:,indx2] .= dio2
+dio[:,indx2] .= dio2;
 
 # The 3D versions of the regular and irregular decimated data
-dr3d = reshape(dro,nt,nx,ny)
-di3d = reshape(dio,nt,nx,ny)
+dr3d = reshape(dro,nt,nx,ny);
+di3d = reshape(dio,nt,nx,ny);
 
 # 3D version of sampling
-T = reshape(T,nt,nx,ny)
+T = reshape(T,nt,nx,ny);
 
 # vectorize the grid and get the coordinate (irregular) of the observations
 jmx_obs = reshape(jmx,:,1)[indx2]
@@ -113,7 +113,7 @@ function proj!(state, (dt,fmin,fmax,rank))
     out = copy(state.x)
     
     # get iteration:
-#    it = state.it;
+    it = state.it;
     
     # fk_thresh
     out .= fx_process(out,dt,fmin,fmax,fast_ssa_lanc,(rank))
@@ -128,45 +128,48 @@ adj(x) = interp_ks3d(x,htt,h,3,10,"adj")
 dadj = adj(din);
 
 # Step-size selection
-α = 1.0;
+α = 0.1;
 
 # Number iterations
-K = 15;
+K = 31;
 
 # f-x process
 dt=0.004; fmin=0; fmax=80; rank=5;
 
 # Reconstruction via PGD+SSA (I-MSSA)
-out_ssa,it_ssa  = pgdls!(fwd, adj, din,
-                         zero(dadj), proj!, (dt,fmin,fmax,rank),
-                         ideal=d0,
-                         α = α, verbose=true,
-                         maxIter=K, tol=1e-6);   
+out_ssa,it_ssa = pgdls!(fwd, adj, din,
+                        zero(dadj), proj!, (dt,fmin,fmax,rank),
+                        ideal=d0,
+                        α = α, verbose=true,
+                        maxIter=K, ε=1e-6);   
 
 # Reg param
-λ = 2.0;
+λ = 2.5;
 
 # Reconstruction via RED(FP)+SSA
-red_ssa,red_it_ssa  = red_fp!(fwd, adj, din,
-                              zero(dadj), λ, proj!, (dt,fmin,fmax,rank),
-                              ideal=d0,
-                              verbose=true,
-                              max_iter_o=K,
-                              max_iter_i=5,
-                              tol=1e-6);
+red_ssa,red_it_ssa = red_fp!(fwd, adj, din,
+                             zero(dadj), λ, proj!, (dt,fmin,fmax,rank),
+                             ideal=d0,
+                             verbose=true,
+                             max_iter_o=K,
+                             max_iter_i=10,
+                             ε=1e-6);
+
+# Reg param
+λ = 2.5;
 
 # ADMM-param
-β = 0.5;
+β = 2.5;
 
 # Reconstruction via RED(ADMM)+SSA
-admm_ssa,admm_it_ssa  = red_admm!(fwd, adj, din,
-                                  zero(dadj), λ, β, proj!, (dt,fmin,fmax,rank),
-                                  ideal=d0,
-                                  verbose=true,
-                                  max_iter_o=K,
-                                  max_iter_i1=10,
-                                  max_iter_i2=1,
-                                  tol=1e-6);
+admm_ssa,admm_it_ssa = red_admm!(fwd, adj, din,
+                                 zero(dadj), λ, β, proj!, (dt,fmin,fmax,rank),
+                                 ideal=d0,
+                                 verbose=true,
+                                 max_iter_o=K,
+                                 max_iter_i1=10,
+                                 max_iter_i2=1,
+                                 tol=1e-6);
 
 ##########################################################################
 function fk_thresh(IN::AbstractArray,sched::AbstractFloat)
@@ -212,46 +215,46 @@ adj(x) = interp_ks3d(x,htt,h,3,10,"adj")
 dadj = adj(din);
 
 # Step-size selection
-α = 0.2;
+α = 0.1;
 
 # threshold scheduler
-Pi,Pf,K=99,1,101
-sched = _sched(dadj,K,Pi,Pf,"exp") ./ 10;
+Pi, Pf, K = 99.9, 1, 101
+sched = _sched(dadj,K,Pi,Pf,"exp") ./ 10 ;
 
-# Deblending by inversion    
-out_fkt,it_fkt  = pgdls!(fwd, adj, din,
-                zero(dadj), proj!, (sched);
-                ideal=d0,
-                α = α, verbose=true,
-                maxIter=K, tol=1e-6);   
+# Reconstruction via PGD+FKT ≡ POCS
+out_fkt,it_fkt = pgdls!(fwd, adj, din,
+                        zero(dadj), proj!, (sched);
+                        ideal=d0,
+                        α = α, verbose=true,
+                        maxIter=K, ε=1e-6);   
 
+# Reg param
+λ = 5.0;
 
+# Reconstruction via RED(FP)+FKT
+red_fkt,red_it_fkt = red_fp!(fwd, adj, din,
+                             zero(dadj), λ, proj!, (sched),
+                             ideal=d0,
+                             verbose=true,
+                             max_iter_o=K,
+                             max_iter_i=10,
+                             ε=1e-6);
 
+# Reg param
+λ = 5.0;
 
+# ADMM-param
+β = 5.0;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Reconstruction via RED(ADMM)+FKT
+admm_fkt,admm_it_fkt = red_admm!(fwd, adj, din,
+                                 zero(dadj), λ, β, proj!, (sched),
+                                 ideal=d0,
+                                 verbose=true,
+                                 max_iter_o=K,
+                                 max_iter_i1=10,
+                                 max_iter_i2=1,
+                                 ε=1e-6);
 
 
 
@@ -264,7 +267,7 @@ function fx_pgd_recon(in::AbstractArray{T},fwd::Function,adj::Function,Pi::Real,
     nx,ny = size(dadj);
 
     # threshold scheduler
-    sched = _sched(dadj,K,Pi,Pf,"linear");
+    sched = _sched(dadj,K,Pi,Pf,"exp");
 
     # Step-size selection
     α = 0.4;

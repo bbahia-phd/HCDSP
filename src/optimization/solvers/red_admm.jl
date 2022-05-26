@@ -44,7 +44,7 @@ mutable struct REDADMMState{Tx, T <: Real}
     snr::T
     curr_misfit::T
     prev_misfit::T
-    count::Int
+    it::Int
 end
 
 # Constructor
@@ -70,7 +70,7 @@ end
 # Iterate overload for zero iteration
 function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}) where {Cf, Gf, Op, Tp, P, T, Tx <: AbstractArray{T}}
 
-    count = 1;
+    it = 1;
     x  = copy(iter.x0)
     v  = copy(iter.x0)
     u  = zero(iter.x0)
@@ -82,7 +82,7 @@ function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}) where {Cf, Gf,
     snr = prediction_quality(x,iter.xi);
     
     # define state
-    state = REDADMMState{Tx,T}(x, v, u, z, zs, iter.tol, snr, curr_misfit, prev_misfit, count)
+    state = REDADMMState{Tx,T}(x, v, u, z, zs, iter.tol, snr, curr_misfit, prev_misfit, it)
 
     return state,state
 end
@@ -91,7 +91,7 @@ end
 function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}, state::REDADMMState{Tx, T}) where {Cf, Gf, Op, Tp, P, T, Tx <: AbstractArray{T}}
 
     # counter
-    state.count += 1
+    state.it += 1
 
     # allocate temps
     e = zero(state.x);
@@ -151,14 +151,8 @@ function red_admm!(L, Lt, d, x, μ, β, proj, args...;
     reserve!(hist, :snr   , max_iter_o+1)
     
     # define iterable
-    iter = red_admm_iterable(L,
-                             Lt,
-                             d,
-                             x,
-                             μ,
-                             β,
-                             proj,
-                             args...;
+    iter = red_admm_iterable(L, Lt, d, x, μ, β,
+                             proj, args...;
                              ideal = ideal,
                              it1 = max_iter_i1,
                              it2 = max_iter_i2,

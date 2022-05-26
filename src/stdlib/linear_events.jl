@@ -102,7 +102,8 @@ end
 
 ##############################################
 """
-    SeisLinearIrregularEvents(; <keyword arguments>)
+    SeisLinearIrregularEvents3D(x1,x2; <keyword arguments>)
+
 Generate up to five dimensional data consisting of irregular linear events.
 # Arguments
 - `ot=0.0`: first sample for the time axis in secs.
@@ -129,7 +130,8 @@ Generate up to five dimensional data consisting of irregular linear events.
 # Example
 ```julia
 julia> using SeisPlot
-julia> d = SeisLinearIrregularEvents3D(); SeisPlotTX(d);
+julia> x1,x2 = ...
+julia> d = SeisLinearIrregularEvents3D(x1,x2); SeisPlotTX(d);
 ```
 """
 function SeisLinearIrregularEvents3D(x1, x2; ot=0.0, dt=0.004, nt=500,

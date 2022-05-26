@@ -24,7 +24,7 @@ end
 """
     "fwd" maps the grids from regular to irregular or "adj" from irregular to regular
 """
-function interp_ks3d_fwd(d::AbstractArray{T} ,grid_irr::AbstractMatrix{Tg} ,grid_reg::AbstractArray{Tg} ,N::Int,a::Int) where {T,Tg}
+function interp_ks3d_fwd(d::AbstractArray{T}, grid_irr::AbstractMatrix{Tg}, grid_reg::AbstractArray{Tg}, N::Int, a::Int) where {T,Tg}
 
 # Get spacing from ther regular grid along x and y
 dx = grid_reg[2,1,1] - grid_reg[1,1,1]
@@ -128,6 +128,4 @@ return drec
 
 end
 
-function kaiser_sinc(t,N,a)
-    return besseli(0,a*sqrt(1-(t/N).^2))/besseli(0,a) * sinc(t)
-end
+kaiser_sinc(t,N,a) =  besseli(0,a*sqrt(1-(t/N).^2))/besseli(0,a) * sinc(t)
