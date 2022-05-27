@@ -54,7 +54,7 @@ function iterate(iter::CGIterable{TOp, Td, Tx, T}) where {TOp, Td, T, Tx}
     Ap = similar(r);
 
     # To compute step-sizes
-    δ0 = dot(r,r);
+    δ0 = real(dot(r,r));
     δ_new = copy(δ0);
     δ_old = zero(δ0);
     
@@ -68,7 +68,7 @@ function iterate(iter::CGIterable{TOp, Td, Tx, T}) where {TOp, Td, T, Tx}
     return state, state
 end
 
-function iterate(iter::CGIterable{TOp, Td, Tx, T}, state::CGState{Ta, Tb}) where {TOp, Td, T, Tx <: AbstractArray{T}, Ta, Tb}
+function iterate(iter::CGIterable{TOp, Td, Tx, T}, state::CGState{Ta, Tb}) where {TOp, Td, T, Tx <: AbstractArray, Ta, Tb}
 
     # Update
     state.it += 1;
@@ -77,7 +77,7 @@ function iterate(iter::CGIterable{TOp, Td, Tx, T}, state::CGState{Ta, Tb}) where
     state.Ap .= iter.L(state.p);
 
     # Step-size
-    α = state.δ_new / dot(state.p, state.Ap)
+    α = state.δ_new / real(dot(state.p, state.Ap))
 
     # Updates
     state.xo .= state.x
@@ -86,7 +86,7 @@ function iterate(iter::CGIterable{TOp, Td, Tx, T}, state::CGState{Ta, Tb}) where
 
     # Step-size
     state.δ_old = state.δ_new
-    state.δ_new = dot(state.r, state.r)
+    state.δ_new = real(dot(state.r, state.r))
     β = state.δ_new / state.δ_old
 
     # Update

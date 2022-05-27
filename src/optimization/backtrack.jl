@@ -18,13 +18,18 @@ the gradient energy and the cost function at a given iteration.
 
 In addition, it defaults some constants used in inexact line searches,
 here in specific the ones used in Armijo's rule which are usually denoted by α_0, σ_1, γ_1, γ_2.
+
+
+May 26, 22: I added real(dot(x,y)) in some cases to help backtrack in the case of quaternion variables.
+Despite the quaternion numbers, the step-sizes are obtained as real numbers (similarly to the complex case).
+
 """
 # calling function
 function backtrack(iter, state; 
-                   α_0 = one( eltype(state.γ) ),
-                   σ_1 = convert.( typeof(α_0), 1e-4 ),
+                   α_0  = one( eltype(state.γ) ),
+                   σ_1  = convert.( typeof(α_0), 1e-4 ),
                    proj = nothing,
-                     W = nothing,
+                     W  = nothing,
                    max_iter = 1000,
                    verbose::Bool=false)
 
@@ -111,7 +116,7 @@ function get_ϕ( L, d, x, g, xnew ;
             r .= d .- L(xnew);
 
             # Sum of squares
-            return dot(r,r)
+            return real(dot(r,r))
         end
         _ϕ
     else
@@ -123,7 +128,7 @@ function get_ϕ( L, d, x, g, xnew ;
             r .= W .* (d .- L(xnew));
 
             # Sum of squares
-            return dot(r,r)
+            return real(dot(r,r))
         end
         _ϕw
     end

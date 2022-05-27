@@ -36,7 +36,7 @@ mutable struct REDFPState{Tx, T <: Real}
     δ0::T    # zero residual energy
     δ_new::T # curr residual energy
     δ_old::T # prev residual energy
-    snr::T   # for quality
+    snr::Any  # for quality
     it::Int  # Iteration counter
 
 end
@@ -55,12 +55,12 @@ function redfp_iterable(L, Lt, d, x, μ, proj, args...;
     LOp(δ) = Lt(L(δ)) .+ μ .* δ;
 
     # Define cost function
-    cost_f(δ,δ_d) = 0.5 * norm(d .- L(δ),2)^2 + 0.5 * μ * dot(δ,(δ - δ_d))
+    cost_f(δ,δ_d) = 0.5 * real(norm(d .- L(δ),2))^2 + 0.5 * μ * real(dot(δ,(δ - δ_d)))
     return REDFPIterable(LOp, rhs, cost_f, proj, args..., x, ideal, int_it, ε)
 end
 
 # Iterate overload for zero iteration
-function iterate(iter::REDFPIterable{Op, Rhs, F, Tp, P, Tx, T}) where {Op,Rhs,F,Tp,P,T,Tx <: AbstractArray{T}}
+function iterate(iter::REDFPIterable{Op, Rhs, F, Tp, P, Tx, T}) where {Op,Rhs,F,Tp,P,T,Tx <: AbstractArray}
 
     # counter
     it = 0;
@@ -82,7 +82,7 @@ function iterate(iter::REDFPIterable{Op, Rhs, F, Tp, P, Tx, T}) where {Op,Rhs,F,
 end
 
 # subsequent iterations
-function iterate(iter::REDFPIterable{Op, Rhs, F, Tp ,P, Tx, T}, state::REDFPState{Tx,T}) where {Op,Rhs,F,Tp,P, T, Tx <: AbstractArray{T}}
+function iterate(iter::REDFPIterable{Op, Rhs, F, Tp ,P, Tx, T}, state::REDFPState{Tx,T}) where {Op,Rhs,F,Tp,P, T, Tx <: AbstractArray}
 
     # counter
     state.it += 1
