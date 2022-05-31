@@ -107,9 +107,6 @@ diz,diy,dix = mix(pi,svi,shi);
 t = (0:nt-1)*dt
 x = jmx[:,1]
 
-# see irregular data (can plot anything like this tho)
-mat"wigb($(di[:,1,:]),1,$x,$t)"
-
 # decimate
 perc1=50;
 
@@ -119,27 +116,28 @@ indx1=HCDSP.decimate_indexes(dzz,perc1) # missing indexes
 indx2=setdiff(indx0,indx1)              # observed indexes
 
 # (random) decimating regular data (data regular observed = dro)
-drz = reshape(dzz,nt,:);
+drz = copy(reshape(dzz,nt,:));
 drz[:,indx1] .= zero(eltype(drz));
 
-dry = reshape(dzy,nt,:);
+dry = copy(reshape(dzy,nt,:));
 dry[:,indx1] .= zero(eltype(dry));
 
-drx = reshape(dzx,nt,:);
+drx = copy(reshape(dzx,nt,:));
 drx[:,indx1] .= zero(eltype(drx));
 
 # (random) decimating irregular data (data irregular observerd = dio)
-diz = reshape(diz,nt,:);
+diz = copy(reshape(diz,nt,:));
 diz[:,indx1] .= zero(eltype(diz));
 
-diy = reshape(diy,nt,:);
+diy = copy(reshape(diy,nt,:));
 diy[:,indx1] .= zero(eltype(diy));
 
-dix = reshape(dix,nt,:);
+dix = copy(reshape(dix,nt,:));
 dix[:,indx1] .= zero(eltype(dix));
  
 # Sampling operator (no need)
-T = SamplingOp(dix);
+#T = SamplingOp(dix);
+#T = reshape(T,nt,nx,ny);
 
 # extract the real irregular without binning
 dix2 = dix[:,indx2];
@@ -161,9 +159,6 @@ dr3dz = reshape(drz,nt,nx,ny);
 di3dx = reshape(dix,nt,nx,ny);
 di3dy = reshape(diy,nt,nx,ny);
 di3dz = reshape(diz,nt,nx,ny);
-
-# 3D version of sampling
-T = reshape(T,nt,nx,ny);
 
 # vectorize the grid and get the coordinate (irregular) of the observations
 jmx_obs = reshape(jmx,:,1)[indx2];
@@ -203,33 +198,33 @@ fwd(x) = interp_ks3d(x,htt,h,3,10,"fwd")
 adj(x) = interp_ks3d(x,htt,h,3,10,"adj")
 
 # Step-size selection
-α = 0.5;
+α = 0.1;
 
 # Number iterations
 K = 101;
 
 # f-x process
-dt=0.004; fmin=0; fmax=80; rank=5;
+dt=0.004; fmin=0; fmax=80; rank=10;
 
 #d0 = copy(quaternion(dzx,dzy,dzz));
 
 # Reconstruction via PGD+SSA (I-MSSA)
 dadj = adj(dix2);
-x_out_ssa,it_ssa = pgdls!(fwd, adj, dix2,
+x_out_ssa,x_it_ssa = pgdls!(fwd, adj, dix2,
                           zero(dadj), proj!, (dt,fmin,fmax,rank),
                           ideal=dzx,
                           α = α, verbose=true,
                           maxIter=K, ε=1e-6);   
 
 dadj = adj(diy2);
-y_out_ssa,it_ssa = pgdls!(fwd, adj, diy2,
+y_out_ssa,y_it_ssa = pgdls!(fwd, adj, diy2,
                           zero(dadj), proj!, (dt,fmin,fmax,rank),
                           ideal=dzy,
                           α = α, verbose=true,
                           maxIter=K, ε=1e-6);   
 
 dadj = adj(diz2);
-z_out_ssa,it_ssa = pgdls!(fwd, adj, diz2,
+z_out_ssa,z_it_ssa = pgdls!(fwd, adj, diz2,
                           zero(dadj), proj!, (dt,fmin,fmax,rank),
                           ideal=dzz,
                           α = α, verbose=true,

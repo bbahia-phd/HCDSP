@@ -218,7 +218,19 @@ out_ssa,it_ssa = pgdls!(fwd, adj, din, zero(dadj),
                         proj!, (dt,fmin,fmax,rank),
                         ideal=d0,
                         α = α, verbose=true,
-                        maxIter=K, ε=1e-6);   
+                        maxIter=K, ε=1e-6);
+
+L=length(it_ssa[:snr])
+pgd_qssa_snrx = zeros(L);
+pgd_qssa_snry = zeros(L);
+pgd_qssa_snrz = zeros(L);
+
+for i in 1:length(it_ssa[:snr])
+    pgd_qssa_snrx[i]=it_ssa[:snr][i][1]
+    pgd_qssa_snry[i]=it_ssa[:snr][i][2]
+    pgd_qssa_snrz[i]=it_ssa[:snr][i][3]
+end
+
 
 # Reg param
 λ = 8.0;
@@ -231,6 +243,19 @@ red_ssa,red_it_ssa = red_fp!(fwd, adj, din, zero(dadj), λ,
                              max_iter_o=K,
                              max_iter_i=10,
                              ε=1e-6);
+
+
+M=length(red_it_ssa[:snr])
+fp_qssa_snrx = zeros(M);
+fp_qssa_snry = zeros(M);
+fp_qssa_snrz = zeros(M);
+
+for i in 1:M
+    fp_qssa_snrx[i]=red_it_ssa[:snr][i][1]
+    fp_qssa_snry[i]=red_it_ssa[:snr][i][2]
+    fp_qssa_snrz[i]=red_it_ssa[:snr][i][3]
+end
+
 
 # Reg param
 λ = 8.0;
@@ -247,6 +272,56 @@ admm_ssa,admm_it_ssa = red_admm!(fwd, adj, din,
                                  max_iter_i1=10,
                                  max_iter_i2=1,
                                  tol=1e-6);
+
+
+
+N=length(admm_it_ssa[:snr])
+admm_qssa_snrx = zeros(N);
+admm_qssa_snry = zeros(N);
+admm_qssa_snrz = zeros(N);
+
+for i in 1:N
+    admm_qssa_snrx[i]=admm_it_ssa[:snr][i][1]
+    admm_qssa_snry[i]=admm_it_ssa[:snr][i][2]
+    admm_qssa_snrz[i]=admm_it_ssa[:snr][i][3]
+end
+
+## Plots
+figname ="qrecon_quality_xyz_qssa"
+figure(figname,figsize=(10,3))
+
+subplot(131)
+plot(1:L, pgd_qssa_snrx,label="PGD (QSSA) X")
+plot(1:M, fp_qssa_snrx,label="REF-FP (QSSA) X")
+plot(1:N, admm_qssa_snrx,label="RED-ADMM (QSSA) X")
+
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(a)")
+legend()
+
+
+subplot(132)
+plot(1:L, pgd_qssa_snry,label="PGD (QSSA) Y")
+plot(1:M, fp_qssa_snry,label="REF-FP (QSSA) Y")
+plot(1:N, admm_qssa_snry,label="RED-ADMM (QSSA) Y")
+
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(b)")
+legend()
+
+subplot(133)
+plot(1:L, pgd_qssa_snrz,label="PGD (QSSA) Z")
+plot(1:M, fp_qssa_snrz,label="REF-FP (QSSA) Z")
+plot(1:N, admm_qssa_snrz,label="RED-ADMM (QSSA) Z")
+
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(c)")
+legend()
+
+tight_layout()
 
 ##########################################################################
 function fk_thresh(IN::AbstractArray,sched::AbstractFloat)
