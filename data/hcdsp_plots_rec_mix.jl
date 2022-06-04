@@ -62,7 +62,7 @@ perc=10:10:90;
 p=6;
 j=2;
 
-fig_name="rank_red_tool_error_bar"
+fig_name="rank_red_compare_ssa_perc60"
 
 lsvd="SSA"
 lrqr="QSSA"
@@ -103,8 +103,10 @@ title("(c) "*L" R_{z}")
 legend()
 tight_layout() 
 
+savefig(fig_name)
 
-fig_name="rank_red_tool_error_bar"
+
+fig_name="rank_red_compare_ssa_rank60"
 
 lsvd="SSA"
 lrqr="QSSA"
@@ -144,3 +146,5 @@ title("(c) "*L" R_{z}")
 
 legend()
 tight_layout() 
+
+savefig(fig_name)
