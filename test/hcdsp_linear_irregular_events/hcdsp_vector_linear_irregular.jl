@@ -13,6 +13,10 @@ using StatsBase, Statistics
 using LinearAlgebra
 using FFTW
 
+# kill me, kill me now, but this will give us access to wigb plotting 
+using MATLAB
+mat"addpath('./../../../QSEIS/src/Plotting/')"
+
 function get_mode_irregular_data(x1,x2;ot=0.0, dt=0.004, nt=200, tau=[0.3],
                                 p1=[0.0001],p2=[0.0],p3=[0.0],p4=[0.0],
                                 amp=[1.0], f0=20.0)
@@ -60,10 +64,6 @@ function mix(p,sv,sh)
     return o1,o2,o3
 end
 
-# kill me, kill me now, but this will give us access to wigb plotting 
-using MATLAB
-mat"addpath('./../../../QSEIS/src/Plotting/')"
-
 # Ok. This is how Rongzhi is doing:
 nx,ny,nt=30,30,200;
 dx,dy,dt=20,20,0.004;
@@ -107,6 +107,9 @@ diz,diy,dix = mix(pi,svi,shi);
 t = (0:nt-1)*dt
 x = jmx[:,1]
 
+# see irregular data (can plot anything like this tho)
+mat"wigb($(diz[:,1,:]),1,$x,$t)"
+
 # decimate
 perc1=50;
 
@@ -116,28 +119,27 @@ indx1=HCDSP.decimate_indexes(dzz,perc1) # missing indexes
 indx2=setdiff(indx0,indx1)              # observed indexes
 
 # (random) decimating regular data (data regular observed = dro)
-drz = copy(reshape(dzz,nt,:));
+drz = reshape(dzz,nt,:);
 drz[:,indx1] .= zero(eltype(drz));
 
-dry = copy(reshape(dzy,nt,:));
+dry = reshape(dzy,nt,:);
 dry[:,indx1] .= zero(eltype(dry));
 
-drx = copy(reshape(dzx,nt,:));
+drx = reshape(dzx,nt,:);
 drx[:,indx1] .= zero(eltype(drx));
 
 # (random) decimating irregular data (data irregular observerd = dio)
-diz = copy(reshape(diz,nt,:));
+diz = reshape(diz,nt,:);
 diz[:,indx1] .= zero(eltype(diz));
 
-diy = copy(reshape(diy,nt,:));
+diy = reshape(diy,nt,:);
 diy[:,indx1] .= zero(eltype(diy));
 
-dix = copy(reshape(dix,nt,:));
+dix = reshape(dix,nt,:);
 dix[:,indx1] .= zero(eltype(dix));
  
 # Sampling operator (no need)
-#T = SamplingOp(dix);
-#T = reshape(T,nt,nx,ny);
+T = SamplingOp(dix);
 
 # extract the real irregular without binning
 dix2 = dix[:,indx2];
@@ -159,6 +161,9 @@ dr3dz = reshape(drz,nt,nx,ny);
 di3dx = reshape(dix,nt,nx,ny);
 di3dy = reshape(diy,nt,nx,ny);
 di3dz = reshape(diz,nt,nx,ny);
+
+# 3D version of sampling
+T = reshape(T,nt,nx,ny);
 
 # vectorize the grid and get the coordinate (irregular) of the observations
 jmx_obs = reshape(jmx,:,1)[indx2];
@@ -188,7 +193,7 @@ function proj!(state, (dt,fmin,fmax,rank))
     it = state.it;
     
     # fk_thresh
-    out .= fx_process(out,dt,fmin,fmax,fast_ssa_lanc,(rank))
+    out .= fx_process(out,dt,fmin,fmax,fast_qssa_lanc,(rank))
     
     # Return
     return out
@@ -197,6 +202,8 @@ end
 fwd(x) = interp_ks3d(x,htt,h,3,10,"fwd")
 adj(x) = interp_ks3d(x,htt,h,3,10,"adj")
 
+dadj = adj(din);
+
 # Step-size selection
 α = 0.1;
 
@@ -204,67 +211,57 @@ adj(x) = interp_ks3d(x,htt,h,3,10,"adj")
 K = 101;
 
 # f-x process
-dt=0.004; fmin=0; fmax=80; rank=10;
-
-#d0 = copy(quaternion(dzx,dzy,dzz));
+dt=0.004; fmin=0; fmax=80; rank=5;
 
 # Reconstruction via PGD+SSA (I-MSSA)
-dadj = adj(dix2);
-x_out_ssa,x_it_ssa = pgdls!(fwd, adj, dix2,
-                          zero(dadj), proj!, (dt,fmin,fmax,rank),
-                          ideal=dzx,
-                          α = α, verbose=true,
-                          maxIter=K, ε=1e-6);   
+out_ssa,it_ssa = pgdls!(fwd, adj, din, zero(dadj),
+                        proj!, (dt,fmin,fmax,rank),
+                        ideal=d0,
+                        α = α, verbose=true,
+                        maxIter=K, ε=1e-6);
 
-dadj = adj(diy2);
-y_out_ssa,y_it_ssa = pgdls!(fwd, adj, diy2,
-                          zero(dadj), proj!, (dt,fmin,fmax,rank),
-                          ideal=dzy,
-                          α = α, verbose=true,
-                          maxIter=K, ε=1e-6);   
+L=length(it_ssa[:snr])
+pgd_qssa_snrx = zeros(L);
+pgd_qssa_snry = zeros(L);
+pgd_qssa_snrz = zeros(L);
 
-dadj = adj(diz2);
-z_out_ssa,z_it_ssa = pgdls!(fwd, adj, diz2,
-                          zero(dadj), proj!, (dt,fmin,fmax,rank),
-                          ideal=dzz,
-                          α = α, verbose=true,
-                          maxIter=K, ε=1e-6);   
+for i in 1:length(it_ssa[:snr])
+    pgd_qssa_snrx[i]=it_ssa[:snr][i][1]
+    pgd_qssa_snry[i]=it_ssa[:snr][i][2]
+    pgd_qssa_snrz[i]=it_ssa[:snr][i][3]
+end
 
-##########################################################################
+
 # Reg param
-λ = 2.5;
+λ = 8.0;
 
 # Reconstruction via RED(FP)+SSA
-red_ssa,red_it_ssa = red_fp!(fwd, adj, din,
-                             zero(dadj), λ, proj!, (dt,fmin,fmax,rank),
+red_ssa,red_it_ssa = red_fp!(fwd, adj, din, zero(dadj), λ,
+                             proj!, (dt,fmin,fmax,rank),
                              ideal=d0,
                              verbose=true,
                              max_iter_o=K,
                              max_iter_i=10,
                              ε=1e-6);
 
-red_ssa,red_it_ssa = red_fp!(fwd, adj, din,
-                             zero(dadj), λ, proj!, (dt,fmin,fmax,rank),
-                             ideal=d0,
-                             verbose=true,
-                             max_iter_o=K,
-                             max_iter_i=10,
-                             ε=1e-6);
 
-red_ssa,red_it_ssa = red_fp!(fwd, adj, din,
-                             zero(dadj), λ, proj!, (dt,fmin,fmax,rank),
-                             ideal=d0,
-                             verbose=true,
-                             max_iter_o=K,
-                             max_iter_i=10,
-                             ε=1e-6);
+M=length(red_it_ssa[:snr])
+fp_qssa_snrx = zeros(M);
+fp_qssa_snry = zeros(M);
+fp_qssa_snrz = zeros(M);
 
-##########################################################################
+for i in 1:M
+    fp_qssa_snrx[i]=red_it_ssa[:snr][i][1]
+    fp_qssa_snry[i]=red_it_ssa[:snr][i][2]
+    fp_qssa_snrz[i]=red_it_ssa[:snr][i][3]
+end
+
+
 # Reg param
-λ = 2.5;
+λ = 8.0;
 
 # ADMM-param
-β = 2.5;
+β = 8.0;
 
 # Reconstruction via RED(ADMM)+SSA
 admm_ssa,admm_it_ssa = red_admm!(fwd, adj, din,
@@ -276,6 +273,56 @@ admm_ssa,admm_it_ssa = red_admm!(fwd, adj, din,
                                  max_iter_i2=1,
                                  tol=1e-6);
 
+
+
+N=length(admm_it_ssa[:snr])
+admm_qssa_snrx = zeros(N);
+admm_qssa_snry = zeros(N);
+admm_qssa_snrz = zeros(N);
+
+for i in 1:N
+    admm_qssa_snrx[i]=admm_it_ssa[:snr][i][1]
+    admm_qssa_snry[i]=admm_it_ssa[:snr][i][2]
+    admm_qssa_snrz[i]=admm_it_ssa[:snr][i][3]
+end
+
+## Plots
+figname ="qrecon_quality_xyz_qssa"
+figure(figname,figsize=(10,3))
+
+subplot(131)
+plot(1:L, pgd_qssa_snrx,label="PGD (QSSA) X")
+plot(1:M, fp_qssa_snrx,label="REF-FP (QSSA) X")
+plot(1:N, admm_qssa_snrx,label="RED-ADMM (QSSA) X")
+
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(a)")
+legend()
+
+
+subplot(132)
+plot(1:L, pgd_qssa_snry,label="PGD (QSSA) Y")
+plot(1:M, fp_qssa_snry,label="REF-FP (QSSA) Y")
+plot(1:N, admm_qssa_snry,label="RED-ADMM (QSSA) Y")
+
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(b)")
+legend()
+
+subplot(133)
+plot(1:L, pgd_qssa_snrz,label="PGD (QSSA) Z")
+plot(1:M, fp_qssa_snrz,label="REF-FP (QSSA) Z")
+plot(1:N, admm_qssa_snrz,label="RED-ADMM (QSSA) Z")
+
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(c)")
+legend()
+
+tight_layout()
+
 ##########################################################################
 function fk_thresh(IN::AbstractArray,sched::AbstractFloat)
 
@@ -284,16 +331,17 @@ function fk_thresh(IN::AbstractArray,sched::AbstractFloat)
     npad = 2 .* nextpow.(2,n)
 
     # Pad
-    tmp = complex.(PadOp(out; nin=n, npad=npad, flag="fwd"))
+    tmp = PadOp(out; nin=n, npad=npad, flag="fwd")
     
-    # fft
-    fft!(tmp)
+    # fft: I do not have a fft! version for the qft but I do have a
+    # fft overwrite with side="left" and μ = 1/√3(i,j,k) default.
+    tmp .= fft(tmp)
 
     # threshold
     threshold!(tmp,sched)
     
     # Truncate
-    out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
+    out .= PadOp( ifft(tmp); nin=n, npad=npad, flag="adj")
     
     # Return
     return out
@@ -331,7 +379,17 @@ out_fkt,it_fkt = pgdls!(fwd, adj, din,
                         zero(dadj), proj!, (sched);
                         ideal=d0,
                         α = α, verbose=true,
-                        maxIter=K, ε=1e-6);   
+                        maxIter=K, ε=1e-6);
+
+pgd_qfkt_snrx = zeros(K);
+pgd_qfkt_snry = zeros(K);
+pgd_qfkt_snrz = zeros(K);
+
+for i in 1:K
+    pgd_qfkt_snrx[i]=it_fkt[:snr][i][1]
+    pgd_qfkt_snry[i]=it_fkt[:snr][i][2]
+    pgd_qfkt_snrz[i]=it_fkt[:snr][i][3]
+end
 
 # Reg param
 λ = 5.0;
@@ -344,6 +402,17 @@ red_fkt,red_it_fkt = red_fp!(fwd, adj, din,
                              max_iter_o=K,
                              max_iter_i=10,
                              ε=1e-6);
+
+fp_qfkt_snrx = zeros(K);
+fp_qfkt_snry = zeros(K);
+fp_qfkt_snrz = zeros(K);
+
+for i in 1:K
+    fp_qfkt_snrx[i]=red_it_fkt[:snr][i][1]
+    fp_qfkt_snry[i]=red_it_fkt[:snr][i][2]
+    fp_qfkt_snrz[i]=red_it_fkt[:snr][i][3]
+end
+
 
 # Reg param
 λ = 5.0;
@@ -361,111 +430,51 @@ admm_fkt,admm_it_fkt = red_admm!(fwd, adj, din,
                                  max_iter_i2=1,
                                  ε=1e-6);
 
+admm_qfkt_snrx = zeros(K);
+admm_qfkt_snry = zeros(K);
+admm_qfkt_snrz = zeros(K);
 
-
-#=
-function fx_pgd_recon(in::AbstractArray{T},fwd::Function,adj::Function,Pi::Real,Pf::Real,K::Int) where {T} 
-
-    # takes as input the frequency slice and prepare the fwd and adj operators
-    dadj = adj(in); # this is a frequency slice nx × ny
-
-    nx,ny = size(dadj);
-
-    # threshold scheduler
-    sched = _sched(dadj,K,Pi,Pf,"exp");
-
-    # Step-size selection
-    α = 0.4;
-
-#=
-    out = copy(dadj);
-
-    for i in 1:K
-        out .=  fk_thresh(out,sched[i]);
-
-        yy1 = fwd(out);
-        yy2 = adj(yy1);
-
-        out .= dadj .+ out .- yy2
-
-    end    
-=#
-    # Deblending by inversion    
-    out,_  = pgdls!(fwd, adj, in,
-                    zero(dadj), proj!, (sched);
-                    ideal=zero(dadj),
-                    α = α, verbose=false,
-                    maxIter=K, tol=1e-6);   
-
-    return out
+for i in 1:K
+    admm_qfkt_snrx[i]=admm_it_fkt[:snr][i][1]
+    admm_qfkt_snry[i]=admm_it_fkt[:snr][i][2]
+    admm_qfkt_snrz[i]=admm_it_fkt[:snr][i][3]
 end
 
-fmin=0; fmax=80; 
 
-out = HCDSP.fx_irregular_process(din,dt,fmin,fmax,htt,h,fx_pgd_recon,(fwd,adj,Pi,Pf,K)...);
-=#
+## Plots
+figname ="qrecon_quality_xyz"
+figure(figname,figsize=(10,3))
 
-#=
-# The dot product test of the interpolator
-function interp_dot_prod_test()
-    fwd(x) = interp_ks3d(x,htt,h,3,10,"fwd")
-    adj(x) = interp_ks3d(x,htt,h,3,10,"adj")
+subplot(131)
+plot(1:K, pgd_qfkt_snrx,label="PGD (QFT) X")
+plot(1:K, fp_qfkt_snrx,label="REF-FP (QFT) X")
+plot(1:K, admm_qfkt_snrx,label="RED-ADMM (QFT) X")
 
-    in1 = randn(size(dr3d)); # this is regular (undersampled) data
-    in2 = randn(size(dio2)); # this is irregular (undersampled) data
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(a)")
+legend()
 
-    out1 = fwd(in1) # this turns in1 into irregular data
-    out2 = adj(in2) # this turns in2 into regular data
 
-    dot1 = dot(vec(in1),vec(out2))
-    dot2 = dot(vec(in2),vec(out1))
+subplot(132)
+plot(1:K, pgd_qfkt_snry,label="PGD (QFT) Y")
+plot(1:K, fp_qfkt_snry,label="REF-FP (QFT) Y")
+plot(1:K, admm_qfkt_snry,label="RED-ADMM (QFT) Y")
 
-    isapprox(dot1,dot2) ? println("Pass") : println("Fail")
-end
-   
-interp_dot_prod_test()
-=#
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(b)")
+legend()
 
-#=
-# jitter: formal definition
-# The basic idea of jittered undersampling is to regularly decimate the interpolation grid, thus generating a coarse grid, and subsequently perturb the coarse-grid sample points on the fine grid.
 
-# As for random undersampling according to a discrete uniform distribution, where each location is equally likely to be sampled, a discrete uniform distribution for the peturbation around the coarse-grid points is considered.
+subplot(133)
+plot(1:K, pgd_qfkt_snrz,label="PGD (QFT) Z")
+plot(1:K, fp_qfkt_snrz,label="REF-FP (QFT) Z")
+plot(1:K, admm_qfkt_snrz,label="RED-ADMM (QFT) Z")
 
-# γ repreesnts the undersampling factor, here taken to be odd, γ = 1, 3, 5, ...
-γx,γy = 5,5;
+xlabel("Iterations"*L" (j) ")
+ylabel("Quality (dB)")
+title("(c)")
+legend()
 
-# SizeN of the interpolation gird is assumed to be a multiple of γ so that the number of acquired points n = N/γ is an integer.
-nx = 10;
-Nx = γx*nx;
-
-ny = 10;
-Ny = γy*ny;
-
-# Jittered-sampled data points given by
-# y[i] = f_0[j] for i = 1,...,n
-# and j = 0.5*(1-γ) + γ * i + ϵ_i
-# where ϵ_i is an iid (assume distribution) integer between [-floor(ξ-1)/2,floor(ξ-1)/2].
-# The jitter parameter, 0 <= ξ <= γ, relates to the size of the perturbation around the corase-grid.
-ξx,ξy = 5,5;
-
-jx = zeros(Int,nx)
-jy = zeros(Int,ny)
-
-for i in 1:nx
-    lx = -floor(0.5*(ξx-1))
-    ux =  floor(0.5*(ξx-1))
-    ϵxi = rand(lx:ux)
-
-    ly = -floor(0.5*(ξy-1))
-    uy =  floor(0.5*(ξy-1))
-    ϵyi = rand(ly:uy)
-
-    jx[i] = 0.5*(1-γx) + γx * i + ϵxi
-    jy[i] = 0.5*(1-γy) + γy * i + ϵyi
-end
-
-# The case above is just "jittered sampling". If you set ξ=0, there is no jitter, and the undersampling scheme is just regular undersampling.
-# The work of Hennenfent and Herrmann show the impact of ξ.
-# Optimally-jittered undersampling sets the jitter parameter equal to the undersampling parameter: ξ = γ. Such a configuration is optimal because it creates the most favourable contitions for recovery with a localized transform.
-=#
+tight_layout()

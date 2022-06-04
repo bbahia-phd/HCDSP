@@ -174,12 +174,13 @@ tuple, that contains useful information on your iterations.
 function push!(hist::IterationHistory, key::Symbol, vec::Union{Vector, Tuple})
     getkey = hist.data[key] # extract key from dictionary
     shift = size(getkey,2)  # extract its size along dim=2 to shift
+    
     # position in output
     iter = hist.iters       # current iteration
     pos = (iter-1)*shift    # relative position
 
     for i in 1:min(shift,length(vec))
-        getkey[pos+i] = vec[i] # notice how this place vec[i] in hist.data[key][pos+i]
+        getkey[pos+i] = vec[:] # notice how this place vec[i] in hist.data[key][pos+i]
     end
 end
 
@@ -205,7 +206,7 @@ end
 
 function reserve!(hist::IterationHistory, key::Symbol, kwargs...)
     # Default for not type annotated calls
-    reserve!(Float64, hist, key, kwargs...)
+    reserve!(Any, hist, key, kwargs...)
 end
 
 function reserve!(T::Type, hist::IterationHistory, key::Symbol, kwargs...)
@@ -217,8 +218,7 @@ function _reserve!(T::Type, hist::IterationHistory, key::Symbol, dim::Int, kwarg
 end
 
 # For future me:
-# We can store intermediate solutions and gradients with smth like
-# this 
+# We can store intermediate solutions and gradients with smth like this 
 function _reserve!(T::Type, hist::IterationHistory, key::Symbol,dim1::Int, dim2::Int, kwargs...)
     hist.data[key] = Matrix{T}(undef,dim1,dim2)
 end
@@ -255,10 +255,34 @@ end
 keys(hist::IterationHistory) = keys(hist.data)
 
 # Prediction quality
-function prediction_quality(pred::AbstractArray,ideal::AbstractArray)
+function prediction_quality(pred::AbstractArray{T},ideal::AbstractArray{T}) where {T <: Union{Real,Complex}}
 
     α = dot(ideal,pred) / dot(pred,pred);
     Q = 20 * log( norm(ideal,2) / norm(ideal - α .* pred,2)  )
 
     return Q
 end
+
+# Prediction quality
+function prediction_quality(pred::AbstractArray{Quaternion{T}},ideal::AbstractArray{Quaternion{T}}) where {T <: Number}
+
+    predx = imagi.(pred)
+    predy = imagj.(pred)
+    predz = imagk.(pred)
+
+    idealx = imagi.(ideal)
+    idealy = imagj.(ideal)
+    idealz = imagk.(ideal)
+
+    αx = dot(idealx,predx) / dot(predx,predx);
+    αy = dot(idealy,predy) / dot(predy,predy);
+    αz = dot(idealz,predz) / dot(predz,predz);
+
+    Qx = 20 * log( norm(idealx,2) / norm(idealx - αx .* predx,2)  )
+    Qy = 20 * log( norm(idealy,2) / norm(idealy - αy .* predy,2)  )
+    Qz = 20 * log( norm(idealz,2) / norm(idealz - αz .* predz,2)  )
+
+
+    return (Qx,Qy,Qz)
+end
+

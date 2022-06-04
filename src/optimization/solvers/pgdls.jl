@@ -38,7 +38,7 @@ mutable struct PGDLSState{Td, Tx, T <: Number}
 
     # Iteration related
     ε::T   # tol::Number
-    snr::T
+    snr::Any
     γ::T    #gprod::T
     δ_new::T    #curr_misfit::T
     δ_old::T    #prev_misfit::T
@@ -109,11 +109,11 @@ function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}, state::PGDLSState{Td
 
     # misfit
     state.δ_old = state.δ_new
-    state.δ_new = dot(state.r, state.r)
+    state.δ_new = real(dot(state.r, state.r))
 
     # gradient
     state.g = iter.Lt(state.r);
-    state.γ = dot(state.g, state.g)
+    state.γ = real(dot(state.g, state.g))
     
     # return 
     return state, state
@@ -136,15 +136,11 @@ function pgdls!(L, Lt, d, x, proj, args...;
     hist = IterationHistory()
     hist[:tol] = ε
     reserve!(hist, :misfit, maxIter+1)
-    reserve!(hist, :snr, maxIter+1)
+    reserve!(hist, :snr   , maxIter+1)
     
     # define iterable
-    iter = pgdls_iterable(L,
-                          Lt,
-                          d,
-                          x,
-                          proj,
-                          args...;
+    iter = pgdls_iterable(L, Lt, d, x,
+                          proj, args...;
                           ideal = ideal,
                           α = α,
                           ε = ε,
@@ -160,7 +156,7 @@ function pgdls!(L, Lt, d, x, proj, args...;
         out = state;
         nextiter!(hist)
         push!(hist, :misfit, out.δ_new)
-        push!(hist, :snr, out.snr)
+        push!(hist, :snr   , out.snr)
         verbose && println("Iteration $(it) misfit $(out.δ_new) snr $(out.snr)")
     end
 

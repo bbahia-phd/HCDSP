@@ -41,10 +41,10 @@ mutable struct REDADMMState{Tx, T <: Real}
 
     # Iteration related
     tol::T
-    snr::T
+    snr::Any
     curr_misfit::T
     prev_misfit::T
-    count::Int
+    it::Int
 end
 
 # Constructor
@@ -56,7 +56,7 @@ function red_admm_iterable(L, Lt, d, x, μ, β, proj, args...;
                            kwargs...)
 
     # Define cost function
-    cost_f(δ,δ_d) = 0.5 * norm(d .- L(δ),2)^2 + 0.5 * μ * dot(δ,(δ - δ_d))
+    cost_f(δ,δ_d) = 0.5 * real(norm(d .- L(δ),2))^2 + 0.5 * μ * real( dot(δ,(δ - δ_d)) )
 
     # Define get_grad
     get_grad(δ,δ_d) = Lt(L(δ)-d) .+ β .* (δ .- δ_d)
@@ -68,9 +68,9 @@ function red_admm_iterable(L, Lt, d, x, μ, β, proj, args...;
 end
 
 # Iterate overload for zero iteration
-function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}) where {Cf, Gf, Op, Tp, P, T, Tx <: AbstractArray{T}}
+function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}) where {Cf, Gf, Op, Tp, P, T, Tx <: AbstractArray}
 
-    count = 1;
+    it = 1;
     x  = copy(iter.x0)
     v  = copy(iter.x0)
     u  = zero(iter.x0)
@@ -82,16 +82,16 @@ function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}) where {Cf, Gf,
     snr = prediction_quality(x,iter.xi);
     
     # define state
-    state = REDADMMState{Tx,T}(x, v, u, z, zs, iter.tol, snr, curr_misfit, prev_misfit, count)
+    state = REDADMMState{Tx,T}(x, v, u, z, zs, iter.tol, snr, curr_misfit, prev_misfit, it)
 
     return state,state
 end
 
 # subsequent iterations
-function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}, state::REDADMMState{Tx, T}) where {Cf, Gf, Op, Tp, P, T, Tx <: AbstractArray{T}}
+function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}, state::REDADMMState{Tx, T}) where {Cf, Gf, Op, Tp, P, T, Tx <: AbstractArray}
 
     # counter
-    state.count += 1
+    state.it += 1
 
     # allocate temps
     e = zero(state.x);
@@ -103,7 +103,7 @@ function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}, state::REDADMM
     for i in 1:iter.it1
         g .= iter.get_grad(state.z,state.zs);
         e .= iter.Op(g);
-        α = dot(g,g) / dot(g,e)
+        α = real( dot(g,g) / dot(g,e) )
         state.z .-= α .* g;
     end
     
@@ -151,14 +151,8 @@ function red_admm!(L, Lt, d, x, μ, β, proj, args...;
     reserve!(hist, :snr   , max_iter_o+1)
     
     # define iterable
-    iter = red_admm_iterable(L,
-                             Lt,
-                             d,
-                             x,
-                             μ,
-                             β,
-                             proj,
-                             args...;
+    iter = red_admm_iterable(L, Lt, d, x, μ, β,
+                             proj, args...;
                              ideal = ideal,
                              it1 = max_iter_i1,
                              it2 = max_iter_i2,
