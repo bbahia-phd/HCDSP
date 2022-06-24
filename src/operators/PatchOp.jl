@@ -33,7 +33,7 @@ function fwdPatchOp(IN::AbstractArray{T,N},
     in_dim = smax .- smin .+ 1;
 
     # convert overlaps to samples
-    solap = round.(Int64,psize.*polap./100 .- 1)
+    solap = round.(Int64,psize.*polap./100)
 
     # safe-guard for window bigger than data
     psize = min.(psize , in_dim)
