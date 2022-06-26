@@ -126,7 +126,7 @@ end
 
 Apply tapers `tapi` and `tapf` to `IN`.
 """
-function applyTaper!(IN::Array{T,N},tapi::NTuple{N,Int}, tapf::NTuple{N,Int}) where {T <: Number, N}
+function applyTaper!(IN::Array{T,N},tapi::NTuple{N,Int}, tapf::NTuple{N,Int}) where {T <: AbstractFloat, N}
 
     # set of indexes
     cwin = CartesianIndices(IN);
@@ -137,6 +137,25 @@ function applyTaper!(IN::Array{T,N},tapi::NTuple{N,Int}, tapf::NTuple{N,Int}) wh
     for j in cwin
         tap = getTaper.(Tuple(j),szt,tapi,tapf)
         IN[j] *= T.(prod(tap))
+    end
+end
+
+"""
+    applyTaper!(IN,tapi,tapf)
+
+Apply tapers `tapi` and `tapf` to `IN`.
+"""
+function applyTaper!(IN::AbstractArray{Quaternion{T},N},tapi::NTuple{N,Int}, tapf::NTuple{N,Int}) where {T <: AbstractFloat, N}
+
+    # set of indexes
+    cwin = CartesianIndices(IN);
+       
+    # patches might vary in size
+    szt = size(IN);
+
+    for j in cwin
+        tap = getTaper.(Tuple(j),szt,tapi,tapf)
+        IN[j] *= prod(tap)
     end
 end
 #===========================================================================================#

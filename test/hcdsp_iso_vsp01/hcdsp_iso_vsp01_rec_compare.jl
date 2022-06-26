@@ -48,7 +48,6 @@ dzx = reshape(dzx,(nt,ns,nsline));
 dzy = reshape(dzy,(nt,ns,nsline));
 dzz = reshape(dzz,(nt,ns,nsline));
 
-
 @everywhere begin
     
     # f-x params
@@ -63,7 +62,7 @@ dzz = reshape(dzz,(nt,ns,nsline));
     smax  = (217,205,205);
 
     # rank-reduction params
-    K = 1:2:10;
+    K = 4:9;
     iter = 20;
     α=0.5;
 
@@ -85,7 +84,7 @@ dzz = reshape(dzz,(nt,ns,nsline));
 end
 
 # Add noise
-snrx,snry,snrz=0.8,1.0,1.2;
+snrx,snry,snrz = 0.8,1.0,1.2;
 dnx = SeisAddNoise(dzx, snrx, db=true,L=3);
 dny = SeisAddNoise(dzy, snry, db=true,L=3);
 dnz = SeisAddNoise(dzz, snrz, db=true,L=3);

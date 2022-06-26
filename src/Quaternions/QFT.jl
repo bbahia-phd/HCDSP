@@ -1,6 +1,7 @@
 import FFTW: fft, ifft, fft!, ifft!
 
 export μ0, qi, qj, qk, qfft, iqfft, fft, ifft
+export Float32
 
 const qi = normalize(quater(1,0,0));
 const qj = normalize(quater(0,1,0));
@@ -82,7 +83,7 @@ function change_basis(IN::AbstractArray{T},B::AbstractArray{Tb}) where {T <: Num
     return quater.(scalar.(IN),Pi,Pj,Pk)
 end
 
-function qfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T}=μ0,side::String="left",dims=1:ndims(IN)) where T <: Real
+function qfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T}=convert(T,μ0),side::String="left",dims=1:ndims(IN)) where T <: Real
 
     # Side
     S = get_side(side);
@@ -104,7 +105,7 @@ function qfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T}=μ0,side::Strin
     return OUT
 end
 
-function iqfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T}=μ0,side::String="left",dims=1:ndims(IN)) where T <: Real
+function iqfft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T}=convert(T,μ0),side::String="left",dims=1:ndims(IN)) where T <: Real
 
     # Side
     S = get_side(side);

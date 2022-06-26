@@ -65,7 +65,8 @@ convert(::Type{Quaternion{T}}, x::Complex) where T <: Real = Quaternion(convert(
 convert(::Type{Quaternion{T}}, q::Quaternion) where T <: Real  = Quaternion{T}(convert(T,q.qs), convert(T,q.qi), convert(T,q.qj), convert(T,q.qk))
 convert(::Type{Quaternion{T}}, x::Quaternion{T}) where T <: Real = x
 convert(::Type{T}, q::Quaternion) where T <: Real = (iszero(q.qi) && iszero(q.qj) && iszero(q.qk)) ? convert(T,q.qs) : throw(InexactError())
-
+convert(::Type{T}, q::Quaternion) where T <: AbstractFloat = Quaternion{T}(convert(T,q.qs),convert(T,q.qi),convert(T,q.qj),convert(T,q.qk))
+    
 # Promotion rules
 promote_rule(::Type{Quaternion}, ::Type{T}) where T <: Real = Quaternion
 promote_rule(::Type{Quaternion{T}}, ::Type{T}) where T <: Real = Quaternion{T}

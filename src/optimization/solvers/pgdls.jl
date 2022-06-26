@@ -67,12 +67,12 @@ function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}) where {Fwd,Adj,Tp,P,
 
     # residuals
     r = iter.d .- iter.L(x)
-    δ_new = dot(r,r);
+    δ_new = real(dot(r,r));
     δ_old = zero(δ_new);
 
     # Gradient
     g = iter.Lt(r)
-    γ = dot(g,g)
+    γ = real(dot(g,g))
 
     # Initial Quality
     snr = prediction_quality(x,iter.xi);

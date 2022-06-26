@@ -231,7 +231,6 @@ for i in 1:length(it_ssa[:snr])
     pgd_qssa_snrz[i]=it_ssa[:snr][i][3]
 end
 
-
 # Reg param
 λ = 8.0;
 
@@ -272,8 +271,6 @@ admm_ssa,admm_it_ssa = red_admm!(fwd, adj, din,
                                  max_iter_i1=10,
                                  max_iter_i2=1,
                                  tol=1e-6);
-
-
 
 N=length(admm_it_ssa[:snr])
 admm_qssa_snrx = zeros(N);
@@ -440,7 +437,6 @@ for i in 1:K
     admm_qfkt_snrz[i]=admm_it_fkt[:snr][i][3]
 end
 
-
 ## Plots
 figname ="qrecon_quality_xyz"
 figure(figname,figsize=(10,3))
@@ -465,7 +461,6 @@ xlabel("Iterations"*L" (j) ")
 ylabel("Quality (dB)")
 title("(b)")
 legend()
-
 
 subplot(133)
 plot(1:K, pgd_qfkt_snrz,label="PGD (QFT) Z")

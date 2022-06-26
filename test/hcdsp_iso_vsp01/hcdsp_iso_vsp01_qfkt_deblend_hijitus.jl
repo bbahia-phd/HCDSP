@@ -1,29 +1,34 @@
-cd(joinpath(homedir(),"projects"))
 pwd()
 
 using Distributed
+addprocs(19);
 
-addprocs(Sys.CPU_THREADS-1);
+@everywhere dev_dir = "/dev/Breno_GOM/projects";
+cd(dev_dir)
+pwd()
 
 @everywhere using Pkg
-@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
+@everywhere Pkg.activate(joinpath(dev_dir,"HCDSP"))
+Pkg.status()
 
 @everywhere using Revise
 @everywhere using LinearAlgebra
 @everywhere using FFTW
 @everywhere using HCDSP
 
-@everywhere include("./dev/deblending/src/deblend_module.jl")
-@everywhere using Main.deblend_module
-
 using PyPlot
 using SeisMain, SeisPlot
 
 # data dir home
-data_path = "./files/vsp3d9c/iso_vsp01/";
+dir_path  = joinpath(dev_dir,"files/iso_vsp01")
+dx_path = joinpath(dir_path,"iso_vsp01_zx.seis");
+dy_path = joinpath(dir_path,"iso_vsp01_zy.seis");
+dz_path = joinpath(dir_path,"iso_vsp01_zz.seis");
 
 # read data
-dzz,hzz,ext_zz = SeisRead(joinpath(data_path,"iso_vsp01_zz.seis"));
+dzx,hzx,ext_zx = SeisRead(dx_path);
+dzy,hzy,ext_zy = SeisRead(dy_path);
+dzz,hzz,ext_zz = SeisRead(dz_path);
 
 # get geometry
 sx = SeisMain.ExtractHeader(hzz,"sx");
@@ -46,40 +51,41 @@ sy_max = sy |> maximum;
 gl_min = gl |> maximum;
 gl_max = gl |> minimum;
 
-@assert ns*nsline*nr == ntr
-
+ozx = zeros(eltype(dzx),nt,ns,nsline,nr);
+ozy = zeros(eltype(dzy),nt,ns,nsline,nr);
 ozz = zeros(eltype(dzz),nt,ns,nsline,nr);
-pgd_fkt  = similar(ozz);
-fp_fkt   = similar(ozz);
-admm_fkt = similar(ozz);
 
-for i in eachindex(hzx)
+for i in eachindex(hzz)
 
     # i-th trace header
-    h = hzx[i]
+    h = hzz[i]
 
     sxi = floor(Int,(h.sx - sx_min)/drz)+1
     syi = floor(Int,(h.sy - sy_min)/drz)+1
     gel = floor(Int,(-h.gelev + gl_min)/drz)+1
 
+    ozx[:,sxi,syi,gel] += dzx[:,i]
+    ozy[:,sxi,syi,gel] += dzy[:,i]
     ozz[:,sxi,syi,gel] += dzz[:,i]
-
 end
 
 #nshots
 nshots = ns*nsline
 
-dt = 0.012f0
+# sampling time
+dt = 0.012
 
 # record length
 rec_length = dt*nt
 
+# shooting grid in indexes
 grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline]
 
 # boat shooting positions
-boat1 = copy(grid[:,1:103])
-boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2)
+boat1 = copy(grid[:,1:103]) # from (1,1)
+boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2) # from (205,205)
 
+# number of shots per boat
 nb1 = prod(size(boat1))
 nb2 = prod(size(boat2))
 
@@ -110,7 +116,7 @@ end
 
 isx = Vector{Int64}(undef,nshots); isx .= nsx;
 isy = Vector{Int64}(undef,nshots); isy .= nsy;
-tau = Vector{Float32}(undef,nshots); tau .= tmp;
+tau = Vector{Float64}(undef,nshots); tau .= tmp;
 
 # blending factor
 t_conv = rec_length*nshots
@@ -126,8 +132,8 @@ PARAM = (nt = nt,
          sx = isx,
          sy = isy)
 
-bFwd(x) = BlendOp(x, PARAM, "fwd");
-bAdj(x) = BlendOp(x, PARAM, "adj");
+bFwd(x) = QBlendOp(x, PARAM, "fwd");
+bAdj(x) = QBlendOp(x, PARAM, "adj");
 
 # Threshold schedule
 @everywhere Pi, Pf, K = 99.9, 0.1, 101
@@ -169,38 +175,56 @@ end
     npad = 2 .* nextpow.(2,n)
 
     # Pad
-    tmp = complex.(PadOp(out; nin=n, npad=npad, flag="fwd"))
+    tmp = PadOp(out; nin=n, npad=npad, flag="fwd")
     
     # fft
-    fft!(tmp)
+    tmp .= fft(tmp)
 
     # threshold
     threshold!(tmp,sched)
     
     # Truncate
-    out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
+    out .= PadOp( ifft(tmp); nin=n, npad=npad, flag="adj")
     
     # Return
     return out
 end
 
-it_pgd_fkt_snr  = Vector{Vector{Float32}}(undef,nr);
-it_fp_fkt_snr   = Vector{Vector{Float32}}(undef,nr);
-it_admm_fkt_snr = Vector{Vector{Float32}}(undef,nr);
+x_pgd_fkt = size(ozx) |> zeros;
+y_pgd_fkt = size(ozy) |> zeros;
+z_pgd_fkt = size(ozz) |> zeros;
 
-it_pgd_fkt_mis  = Vector{Vector{Float32}}(undef,nr);
-it_fp_fkt_mis   = Vector{Vector{Float32}}(undef,nr);
-it_admm_fkt_mis = Vector{Vector{Float32}}(undef,nr);
+x_fp_fkt = size(ozx) |> zeros;
+y_fp_fkt = size(ozy) |> zeros;
+z_fp_fkt = size(ozz) |> zeros;
+
+x_admm_fkt = size(ozx) |> zeros;
+y_admm_fkt = size(ozy) |> zeros;
+z_admm_fkt = size(ozz) |> zeros;
+
+it_pgd_fkt_snr  = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
+it_fp_fkt_snr   = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
+it_admm_fkt_snr = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
+
+it_pgd_fkt_mis  = Vector{Vector{Float64}}(undef,nr);
+it_fp_fkt_mis   = Vector{Vector{Float64}}(undef,nr);
+it_admm_fkt_mis = Vector{Vector{Float64}}(undef,nr);
+
+# tolerance
+ε=1e-6;
 
 for icrg in 1:nr
 
     println("Deblend $icrg-th CRG")
     
     # Select a CRG
-    tmpz = ozz[:,:,:,icrg];
+    x = Float64.(ozx[:,:,:,icrg]);
+    y = Float64.(ozy[:,:,:,icrg]);
+    z = Float64.(ozz[:,:,:,icrg]);
+    q = quaternion(x,y,z);
 
     # Inverse crime: model observed data
-    b  = bFwd(tmpz);
+    b  = bFwd(q);
 
     # Pseudo-deblended
     db = bAdj(b);
@@ -208,64 +232,97 @@ for icrg in 1:nr
     # Patching
     dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
 
-    # Threshold scheduler
+    # Threshold scheduler (it should be √.(sched) but that is too much)
     sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
-
-    # PGD step-size (< 1/β ≈ 0.5)
-    α = Float32(0.1);
-
-    # Deblending by inversion
-    tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
-                        proj!, (psize,polap,smin,smax,sched);
-                        ideal = tmpz, α=α,
-                        verbose=true,
-                        maxIter=K,
-                        ε=Float32(1e-16));
-    
-    # Store inversion results
-    pgd_fkt[:,:,:,icrg] .= tmp;
-    it_pgd_fkt_snr[icrg] = tmp_it[:snr];
-    it_pgd_fkt_mis[icrg] = tmp_it[:misfit];
-    
+   
     # RED reg param
-    λ = Float32(0.5);
+    λ = 0.5;
 
     # Deblending by inversion    
     tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
                          proj!, (psize,polap,smin,smax,sched);
-                         ideal = tmpz,
+                         ideal = q,
                          verbose=true,
                          max_iter_o=K,
                          max_iter_i=10,
-                         ε=Float32(1e-16));
+                         ε=ε);
     
     # Store inversion results
-    fp_fkt[:,:,:,icrg] .= tmp;
+    x_fp_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_fp_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_fp_fkt[:,:,:,icrg] .= imagk.(tmp);
+
     it_fp_fkt_snr[icrg] = tmp_it[:snr];
     it_fp_fkt_mis[icrg] = tmp_it[:misfit];
  
     # RED reg & admm param
-    λ = Float32(0.5);
-    γ = Float32(0.5);
+    λ = 0.5; γ = 0.5;
 
     # Deblending by inversion    
     tmp,tmp_it = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
                            proj!, (psize,polap,smin,smax,sched);
-                           ideal = tmpz,
+                           ideal = q,
                            verbose=true,
                            max_iter_o=K,
                            max_iter_i1=10,
                            max_iter_i2=1,
-                           ε=Float32(1e-16));
+                           ε=ε);
 
     # Store inversion results
-    admm_fkt[:,:,:,icrg] .= tmp;
+    x_admm_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_admm_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_admm_fkt[:,:,:,icrg] .= imagk.(tmp);
+
     it_admm_fkt_snr[icrg] = tmp_it[:snr];
     it_admm_fkt_mis[icrg] = tmp_it[:misfit];
+
+    # PGD step-size (< 1/β ≈ 0.5)
+    α = 0.1;
+
+    # Deblending by inversion
+    tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
+                        proj!, (psize,polap,smin,smax,sched);
+                        ideal = q, α=α,
+                        verbose=true,
+                        maxIter=K,
+                        ε=ε);
+    
+    # Store inversion results
+    x_pgd_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_pgd_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_pgd_fkt[:,:,:,icrg] .= imagk.(tmp);
+
+    it_pgd_fkt_snr[icrg] = tmp_it[:snr];
+    it_pgd_fkt_mis[icrg] = tmp_it[:misfit];
+
 end
 
-j=50;
-tmp = [ozz[:,:,j] db[:,:,j] pgd_fkt[:,:,j] fp_fkt[:,:,j]];
-a = maximum(tmp[:])*0.2;
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_pgd_qfkt.seis", pgd_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_qfkt.seis",  fp_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_admm_qfkt.seis",admm_fkt,hzz,ext)
 
-SeisPlotTX(tmp,pclip=90,vmin=-a,vmax=a,cmap="gray")
+fname = joinpath(dir_path,"all_iter_hist_qfkt.h5")
+
+using HDF5
+
+fid = h5open(fname,"w")
+
+create_group(fid,"admm/snr")
+create_group(fid,"fp/snr")
+create_group(fid,"pgd/snr")
+
+create_group(fid,"admm/mis")
+create_group(fid,"fp/mis")
+create_group(fid,"pgd/mis")
+
+for i in 1:nr
+    fid["admm"]["snr"]["$i"] = it_admm_fkt_snr[i]
+    fid["fp"]["snr"]["$i"]   = it_fp_fkt_snr[i]
+    fid["pgd"]["snr"]["$i"]  = it_pgd_fkt_snr[i]
+
+    fid["admm"]["mis"]["$i"] = it_admm_fkt_mis[i]
+    fid["fp"]["mis"]["$i"]   = it_fp_fkt_mis[i]
+    fid["pgd"]["mis"]["$i"]  = it_pgd_fkt_mis[i]
+end
+
+close(fid)

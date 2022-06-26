@@ -1,38 +1,42 @@
 pwd()
-cd(joinpath(homedir(),"projects"))
 
 using Distributed
+addprocs(9);
 
-addprocs(10);
+@everywhere dev_dir = "/dev/Breno_GOM/projects";
+cd(dev_dir)
+pwd()
 
 @everywhere using Pkg
-@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
+@everywhere Pkg.activate(joinpath(dev_dir,"HCDSP"))
+Pkg.status()
 
 @everywhere using Revise
 @everywhere using LinearAlgebra
 @everywhere using FFTW
 @everywhere using HCDSP
 
-@everywhere include("./dev/deblending/src/deblend_module.jl")
-@everywhere using Main.deblend_module
+@everywhere include(joinpath(dev_dir,"dev/deblending/src/deblend_module.jl"))
+@everywhere import Main.deblend_module: BlendOp
 
 using PyPlot
 using SeisMain, SeisPlot
 
 # data dir home
-data_path = "./files/vsp3d9c/iso_vsp01/";
+dir_path  = joinpath(dev_dir,"files/iso_vsp01")
+data_path = joinpath(dir_path,"iso_vsp01_zz.seis");
 
 # read data
-dzz,hzz,ext_zz = SeisRead(joinpath(data_path,"iso_vsp01_zz.seis"));
+dzz,hzz,ext_zz = SeisRead(data_path);
 
 # get geometry
 sx = SeisMain.ExtractHeader(hzz,"sx");
 sy = SeisMain.ExtractHeader(hzz,"sy");
 gl = SeisMain.ExtractHeader(hzz,"gelev");
 
-nt = 218;     # number of time samples (int64)
-ns = 205;     # number of sources within lines
 nsline = 205; # number of source lines
+ns = 205;     # number of sources within lines
+nt = 218;     # number of time samples
 nr = 31;      # number of receivers down-well
 drz = 16.6 ;  # source and receiver spacing (m )
 
@@ -46,40 +50,40 @@ sy_max = sy |> maximum;
 gl_min = gl |> maximum;
 gl_max = gl |> minimum;
 
-@assert ns*nsline*nr == ntr
-
 ozz = zeros(eltype(dzz),nt,ns,nsline,nr);
 pgd_fkt  = similar(ozz);
 fp_fkt   = similar(ozz);
 admm_fkt = similar(ozz);
 
-for i in eachindex(hzx)
+for i in eachindex(hzz)
 
     # i-th trace header
-    h = hzx[i]
+    h = hzz[i]
 
     sxi = floor(Int,(h.sx - sx_min)/drz)+1
     syi = floor(Int,(h.sy - sy_min)/drz)+1
     gel = floor(Int,(-h.gelev + gl_min)/drz)+1
 
     ozz[:,sxi,syi,gel] += dzz[:,i]
-
 end
 
 #nshots
 nshots = ns*nsline
 
+# sampling time
 dt = 0.012f0
 
 # record length
 rec_length = dt*nt
 
+# shooting grid in indexes
 grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline]
 
 # boat shooting positions
-boat1 = copy(grid[:,1:103])
-boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2)
+boat1 = copy(grid[:,1:103]) # from (1,1)
+boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2) # from (205,205)
 
+# number of shots per boat
 nb1 = prod(size(boat1))
 nb2 = prod(size(boat2))
 
@@ -208,7 +212,7 @@ for icrg in 1:nr
     # Patching
     dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
 
-    # Threshold scheduler
+    # Threshold scheduler (it should be √.(sched) but that is too much)
     sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
 
     # PGD step-size (< 1/β ≈ 0.5)
@@ -264,8 +268,32 @@ for icrg in 1:nr
     it_admm_fkt_mis[icrg] = tmp_it[:misfit];
 end
 
-j=50;
-tmp = [ozz[:,:,j] db[:,:,j] pgd_fkt[:,:,j] fp_fkt[:,:,j]];
-a = maximum(tmp[:])*0.2;
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_pgd_fkt.seis",pgd_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_fkt.seis",fp_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_admm_fkt.seis",admm_fkt,hzz,ext)
 
-SeisPlotTX(tmp,pclip=90,vmin=-a,vmax=a,cmap="gray")
+fname = joinpath(dir_path,"all_iter_hist_fkt.h5")
+
+using HDF5
+
+fid = h5open(fname,"w")
+
+create_group(fid,"admm/snr")
+create_group(fid,"fp/snr")
+create_group(fid,"pgd/snr")
+
+create_group(fid,"admm/mis")
+create_group(fid,"fp/mis")
+create_group(fid,"pgd/mis")
+
+for i in 1:nr
+    fid["admm"]["snr"]["$i"] = it_admm_fkt_snr[i]
+    fid["fp"]["snr"]["$i"]   = it_fp_fkt_snr[i]
+    fid["pgd"]["snr"]["$i"]  = it_pgd_fkt_snr[i]
+
+    fid["admm"]["mis"]["$i"] = it_admm_fkt_mis[i]
+    fid["fp"]["mis"]["$i"]   = it_fp_fkt_mis[i]
+    fid["pgd"]["mis"]["$i"]  = it_pgd_fkt_mis[i]
+end
+
+close(fid)

@@ -1,12 +1,14 @@
 pwd()
-cd(joinpath(homedir(),"projects"))
 
 using Distributed
-
 addprocs(10);
+@everywhere dev_dir = "/dev/Breno_GOM/projects/"
+
+cd(dev_dir)
 
 @everywhere using Pkg
-@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
+@everywhere Pkg.activate(joinpath(dev_dir,"HCDSP"))
+Pkg.status()
 
 @everywhere using Revise
 @everywhere using LinearAlgebra

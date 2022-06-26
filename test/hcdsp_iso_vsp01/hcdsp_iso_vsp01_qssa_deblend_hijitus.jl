@@ -1,29 +1,37 @@
 pwd()
-cd(joinpath(homedir(),"projects"))
 
 using Distributed
+addprocs(9);
 
-addprocs(10);
+@everywhere dev_dir = "/dev/Breno_GOM/projects";
+cd(dev_dir)
+pwd()
 
 @everywhere using Pkg
-@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
+@everywhere Pkg.activate(joinpath(dev_dir,"HCDSP"))
+Pkg.status()
 
 @everywhere using Revise
 @everywhere using LinearAlgebra
 @everywhere using FFTW
 @everywhere using HCDSP
 
-@everywhere include("./dev/deblending/src/deblend_module.jl")
-@everywhere using Main.deblend_module
+@everywhere include(joinpath(dev_dir,"dev/deblending/src/deblend_module.jl"))
+@everywhere import Main.deblend_module: BlendOp, QBlendOp
 
 using PyPlot
 using SeisMain, SeisPlot
 
 # data dir home
-data_path = "./files/vsp3d9c/iso_vsp01/";
+dir_path  = joinpath(dev_dir,"files/iso_vsp01")
+dx_path = joinpath(dir_path,"iso_vsp01_zx.seis");
+dy_path = joinpath(dir_path,"iso_vsp01_zy.seis");
+dz_path = joinpath(dir_path,"iso_vsp01_zz.seis");
 
 # read data
-dzz,hzz,ext_zz = SeisRead(joinpath(data_path,"iso_vsp01_zz.seis"));
+dzx,hzx,ext_zx = SeisRead(dx_path);
+dzy,hzy,ext_zy = SeisRead(dy_path);
+dzz,hzz,ext_zz = SeisRead(dz_path);
 
 # get geometry
 sx = SeisMain.ExtractHeader(hzz,"sx");
@@ -46,33 +54,35 @@ sy_max = sy |> maximum;
 gl_min = gl |> maximum;
 gl_max = gl |> minimum;
 
-@assert ns*nsline*nr == ntr
-
+ozx = zeros(eltype(dzx),nt,ns,nsline,nr);
+ozy = zeros(eltype(dzy),nt,ns,nsline,nr);
 ozz = zeros(eltype(dzz),nt,ns,nsline,nr);
-pgd_fkt  = similar(ozz);
-fp_fkt   = similar(ozz);
-admm_fkt = similar(ozz);
 
-for i in eachindex(hzx)
+for i in eachindex(hzz)
 
     # i-th trace header
-    h = hzx[i]
+    h = hzz[i]
 
     sxi = floor(Int,(h.sx - sx_min)/drz)+1
     syi = floor(Int,(h.sy - sy_min)/drz)+1
     gel = floor(Int,(-h.gelev + gl_min)/drz)+1
 
+    ozx[:,sxi,syi,gel] += dzx[:,i]
+    ozy[:,sxi,syi,gel] += dzy[:,i]
     ozz[:,sxi,syi,gel] += dzz[:,i]
-
 end
 
 #nshots
 nshots = ns*nsline
 
-dt = 0.012f0
+# time sampling
+dt = 0.012
 
 # record length
 rec_length = dt*nt
+
+# total time for conventional acqusition
+tconv = rec_length*nshots
 
 grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline]
 
@@ -110,12 +120,7 @@ end
 
 isx = Vector{Int64}(undef,nshots); isx .= nsx;
 isy = Vector{Int64}(undef,nshots); isy .= nsy;
-tau = Vector{Float32}(undef,nshots); tau .= tmp;
-
-# blending factor
-t_conv = rec_length*nshots
-t_blend = maximum(tau) + rec_length -1
-β = t_conv/t_blend;
+tau = Vector{Float64}(undef,nshots); tau .= tmp;
 
 #
 PARAM = (nt = nt,
@@ -126,33 +131,34 @@ PARAM = (nt = nt,
          sx = isx,
          sy = isy)
 
-bFwd(x) = BlendOp(x, PARAM, "fwd");
-bAdj(x) = BlendOp(x, PARAM, "adj");
+bFwd(x) = QBlendOp(x, PARAM, "fwd");
+bAdj(x) = QBlendOp(x, PARAM, "adj");
 
-# Threshold schedule
-@everywhere Pi, Pf, K = 99.9, 0.1, 101
-
-# Params for patching
+# Patching
 psize = nextpow.(2,(100,20,20));
 polap = (10,20,20);
-smin = (1,1,1);
-smax = (nt,ns,nsline);
+ smin = ntuple(x->1,Val(ndims(db)));
+ smax = (nt,ns,nsline);
 
-# Define a patched projection operator
-function proj!(state, (psize, polap, smin, smax, sched))
+# Threshold schedule
+@everywhere fmin=0;fmax=50;rank=5; K=101;
+
+# Define a patching operator
+function proj!(state, (psize, polap, smin, smax, dt, fmin, fmax, rank))
     # output allocation
     out = copy(state.x)
 
     # get iteration:
     it = state.it;
 
+    # define ssa function
+    fssa(δ) = fx_process(δ,dt,fmin,fmax,fast_qssa_lanc,(rank))
+
     # apply patching on input
     patches,pid = fwdPatchOp(out, psize, polap, smin, smax);
     
     # fk_thresh all patches
-    patches .= pmap(fk_thresh,
-                    patches,
-                    repeat([sched[it]], length(patches)));
+    patches .= pmap(fssa,patches);
     
     # Rewrite the solution
     out .= adjPatchOp(patches, pid, psize, polap, smin, smax);
@@ -161,111 +167,102 @@ function proj!(state, (psize, polap, smin, smax, sched))
     return out
 end
 
-@everywhere function fk_thresh(IN::AbstractArray,sched::AbstractFloat)
+x_pgd_fkt = size(ozx) |> zeros;
+y_pgd_fkt = size(ozy) |> zeros;
+z_pgd_fkt = size(ozz) |> zeros;
 
-    out = copy(IN)
-    
-    n = size(IN)
-    npad = 2 .* nextpow.(2,n)
+x_fp_fkt = size(ozx) |> zeros;
+y_fp_fkt = size(ozy) |> zeros;
+z_fp_fkt = size(ozz) |> zeros;
 
-    # Pad
-    tmp = complex.(PadOp(out; nin=n, npad=npad, flag="fwd"))
-    
-    # fft
-    fft!(tmp)
+x_admm_fkt = size(ozx) |> zeros;
+y_admm_fkt = size(ozy) |> zeros;
+z_admm_fkt = size(ozz) |> zeros;
 
-    # threshold
-    threshold!(tmp,sched)
-    
-    # Truncate
-    out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
-    
-    # Return
-    return out
-end
+it_pgd_fkt_snr  = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
+it_fp_fkt_snr   = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
+it_admm_fkt_snr = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
 
-it_pgd_fkt_snr  = Vector{Vector{Float32}}(undef,nr);
-it_fp_fkt_snr   = Vector{Vector{Float32}}(undef,nr);
-it_admm_fkt_snr = Vector{Vector{Float32}}(undef,nr);
+it_pgd_fkt_mis  = Vector{Vector{Float64}}(undef,nr);
+it_fp_fkt_mis   = Vector{Vector{Float64}}(undef,nr);
+it_admm_fkt_mis = Vector{Vector{Float64}}(undef,nr);
 
-it_pgd_fkt_mis  = Vector{Vector{Float32}}(undef,nr);
-it_fp_fkt_mis   = Vector{Vector{Float32}}(undef,nr);
-it_admm_fkt_mis = Vector{Vector{Float32}}(undef,nr);
+# tolerance
+ε=1e-4;
 
 for icrg in 1:nr
 
     println("Deblend $icrg-th CRG")
     
     # Select a CRG
-    tmpz = ozz[:,:,:,icrg];
+    x = Float64.(ozx[:,:,:,icrg]);
+    y = Float64.(ozy[:,:,:,icrg]);
+    z = Float64.(ozz[:,:,:,icrg]);
+    q = quaternion(x,y,z);
 
     # Inverse crime: model observed data
-    b  = bFwd(tmpz);
+    b  = bFwd(q);
 
     # Pseudo-deblended
     db = bAdj(b);
-
-    # Patching
-    dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
-
-    # Threshold scheduler
-    sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
-
+ 
     # PGD step-size (< 1/β ≈ 0.5)
-    α = Float32(0.1);
+    α = 0.2;
 
     # Deblending by inversion
     tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
-                        proj!, (psize,polap,smin,smax,sched);
-                        ideal = tmpz, α=α,
+                        proj!, (psize,polap,smin,smax,dt,fmin,fmax,rank);
+                        ideal = q, α=α,
                         verbose=true,
                         maxIter=K,
-                        ε=Float32(1e-16));
+                        ε=ε);  
     
     # Store inversion results
-    pgd_fkt[:,:,:,icrg] .= tmp;
+    x_pgd_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_pgd_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_pgd_fkt[:,:,:,icrg] .= imagk.(tmp);
+
     it_pgd_fkt_snr[icrg] = tmp_it[:snr];
     it_pgd_fkt_mis[icrg] = tmp_it[:misfit];
     
     # RED reg param
-    λ = Float32(0.5);
+    λ = 0.1;
 
     # Deblending by inversion    
     tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
-                         proj!, (psize,polap,smin,smax,sched);
-                         ideal = tmpz,
+                         proj!, (psize,polap,smin,smax,dt,fmin,fmax,rank);
+                         ideal = q,
                          verbose=true,
                          max_iter_o=K,
                          max_iter_i=10,
-                         ε=Float32(1e-16));
+                         ε=1e-3);
     
     # Store inversion results
-    fp_fkt[:,:,:,icrg] .= tmp;
+    x_fp_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_fp_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_fp_fkt[:,:,:,icrg] .= imagk.(tmp);
+
     it_fp_fkt_snr[icrg] = tmp_it[:snr];
     it_fp_fkt_mis[icrg] = tmp_it[:misfit];
- 
+
     # RED reg & admm param
-    λ = Float32(0.5);
-    γ = Float32(0.5);
+    λ = 0.1; γ = 0.1;
 
     # Deblending by inversion    
     tmp,tmp_it = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
-                           proj!, (psize,polap,smin,smax,sched);
-                           ideal = tmpz,
+                           proj!, (psize,polap,smin,smax,dt,fmin,fmax,rank);
+                           ideal = q,
                            verbose=true,
                            max_iter_o=K,
                            max_iter_i1=10,
                            max_iter_i2=1,
-                           ε=Float32(1e-16));
+                           ε=ε);
 
     # Store inversion results
-    admm_fkt[:,:,:,icrg] .= tmp;
+    x_admm_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_admm_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_admm_fkt[:,:,:,icrg] .= imagk.(tmp);
+
     it_admm_fkt_snr[icrg] = tmp_it[:snr];
     it_admm_fkt_mis[icrg] = tmp_it[:misfit];
 end
-
-j=50;
-tmp = [ozz[:,:,j] db[:,:,j] pgd_fkt[:,:,j] fp_fkt[:,:,j]];
-a = maximum(tmp[:])*0.2;
-
-SeisPlotTX(tmp,pclip=90,vmin=-a,vmax=a,cmap="gray")
