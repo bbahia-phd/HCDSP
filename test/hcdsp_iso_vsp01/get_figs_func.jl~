@@ -1,0 +1,41 @@
+function get_fig_1()
+    j = 111; r = 15;
+    p=99;
+
+    a = max(maximum(vec(dzz)),maximum(vec(db)))*0.1
+
+    figname = "time_slice_($j)_($r)"
+    figure(figname,figsize=1.5 .* (5,2.5))
+
+    subplot(121)
+    SeisPlotTX(dzz[j,:,:,r],
+               ox = 0.0,
+               dx = drz,
+               xlabel="Source position (m)",
+               oy = 0.0,
+               dy = drz,
+               ylabel="Source position (m)",
+               cmap="gray",
+               vmin=-a,
+               vmax=a,
+               pclip=p,
+               fignum=figname,
+               title="(a)")
+
+    subplot(122)
+    SeisPlotTX(db[j,:,:,r],
+               ox = 0.0,
+               dx = drz,
+               xlabel="Source position (m)",
+               oy = 0.0,
+               dy = drz,
+               ylabel="Source position (m)",
+               cmap="gray",
+               vmin=-a,
+               vmax=a,
+               pclip=p,
+               fignum=figname,
+               title="(b)")
+
+    tight_layout()
+end
