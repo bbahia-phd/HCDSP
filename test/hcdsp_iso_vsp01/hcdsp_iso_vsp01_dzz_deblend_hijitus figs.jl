@@ -22,16 +22,15 @@ using SeisMain, SeisPlot
 using HDF5
 
 # data dir home
-dir_path  = "/media/bbahia/DATA/seismic_data/iso_vsp01"
+dir_path = "/media/bbahia/DATA/seismic_data/iso_vsp01"
 
 # read input data
 dzz,hzz,ext_zz = SeisRead(joinpath(dir_path,"iso_vsp01_ozz.seis"));
 db,_,_         = SeisRead(joinpath(dir_path,"iso_vsp01_zz_pseudo.seis"));
 
-
-pgd_fkt ,_,_   = SeisRead(joinpath(dir_path,"iso_vsp01_zz_pgd_fkt.seis"));
-fp_fkt  ,_,_   = SeisRead(joinpath(dir_path,"iso_vsp01_zz_fp_fkt.seis"));
-admm_fkt,_,_   = SeisRead(joinpath(dir_path,"iso_vsp01_zz_admm_fkt.seis"));
+pgd_fkt ,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zz_pgd_fkt.seis"));
+fp_fkt  ,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zz_fp_fkt.seis"));
+admm_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zz_admm_fkt.seis"));
 
 # get geometry
 sx = SeisMain.ExtractHeader(hzz,"sx");
