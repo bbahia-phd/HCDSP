@@ -19,20 +19,21 @@ using SeisMain, SeisPlot
 using HDF5
 
 # data dir home
-dir_path  = "/media/bbahia/DATA/seismic_data/iso_vsp01/"
+#dir_path  = "/media/bbahia/DATA/seismic_data/iso_vsp01/"
+dir_path  = "/dev/Breno_GOM/projects/files/iso_vsp01/"
 
 # read pseudo-deblended data
-dx_path = joinpath(dir_path,"pseudo/iso_vsp01_zx_pseudo.seis");
-dy_path = joinpath(dir_path,"pseudo/iso_vsp01_zy_pseudo.seis");
-dz_path = joinpath(dir_path,"pseudo/iso_vsp01_zz_pseudo.seis");
+dx_path = joinpath(dir_path,"iso_vsp01_zx_pseudo.seis");
+dy_path = joinpath(dir_path,"iso_vsp01_zy_pseudo.seis");
+dz_path = joinpath(dir_path,"iso_vsp01_zz_pseudo.seis");
 dbx,_,_ = SeisRead(dx_path);
 dby,_,_ = SeisRead(dy_path);
 dbz,_,_ = SeisRead(dz_path);
 
 # read ideal input data
-dx_path = joinpath(dir_path,"inputs/iso_vsp01_zx.seis");
-dy_path = joinpath(dir_path,"inputs/iso_vsp01_zy.seis");
-dz_path = joinpath(dir_path,"inputs/iso_vsp01_zz.seis");
+dx_path = joinpath(dir_path,"iso_vsp01_zx.seis");
+dy_path = joinpath(dir_path,"iso_vsp01_zy.seis");
+dz_path = joinpath(dir_path,"iso_vsp01_zz.seis");
 dzx,hzx,ext = SeisRead(dx_path);
 dzy,hzy,ext = SeisRead(dy_path);
 dzz,hzz,ext = SeisRead(dz_path);

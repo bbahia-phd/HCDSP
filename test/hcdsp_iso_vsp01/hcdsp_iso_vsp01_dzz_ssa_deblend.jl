@@ -169,7 +169,7 @@ function proj!(state, (psize, polap, smin, smax, dt, fmin, fmax, rank))
 end
 
 # Step-size
-α = Float32(0.5);
+α = Float32(0.2);
 
 # Deblending by inversion
 pgd_fkt,it_pgd_fkt = pgdls!(bFwd, bAdj, b, zero(db),

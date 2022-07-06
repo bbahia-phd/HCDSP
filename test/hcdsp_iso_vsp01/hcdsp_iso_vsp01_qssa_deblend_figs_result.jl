@@ -1,6 +1,6 @@
 pwd()
 
-dev_dir = "/home/bbahia/projects";
+dev_dir = "/dev/Breno_GOM/projects";
 cd(dev_dir)
 pwd()
 
@@ -19,22 +19,22 @@ using SeisMain, SeisPlot
 using HDF5
 
 # data dir home
-dir_path  = "/media/bbahia/DATA/seismic_data/iso_vsp01/"
+dir_path  = "/dev/Breno_GOM/projects/files/iso_vsp01/"
 
 # read pgd-qssa results
-x_pgd_fkt,hzz,ext = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zx_pgd_qssa.seis"));
-y_pgd_fkt ,_,_ = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zy_pgd_qssa.seis"));
-z_pgd_fkt ,_,_ = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zz_pgd_qssa.seis"));
+x_pgd_fkt,hzz,ext = SeisRead(joinpath(dir_path,"iso_vsp01_zx_pgd_qssa.seis"));
+y_pgd_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zy_pgd_qssa.seis"));
+z_pgd_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zz_pgd_qssa.seis"));
 
 # read fp-qssa results
-x_fp_fkt  ,_,_ = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zx_fp_qssa.seis"));
-y_fp_fkt  ,_,_ = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zy_fp_qssa.seis"));
-z_fp_fkt  ,_,_ = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zz_fp_qssa.seis"));
+x_fp_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zx_fp_qssa.seis"));
+y_fp_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zy_fp_qssa.seis"));
+z_fp_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zz_fp_qssa.seis"));
 
 # read admm-qssa results
-x_admm_fkt,_,_ = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zx_admm_qssa.seis"));
-y_admm_fkt,_,_ = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zy_admm_qssa.seis"));
-z_admm_fkt,_,_ = SeisRead(joinpath(dir_path,"qssa/iso_vsp01_zz_admm_qssa.seis"));
+x_admm_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zx_admm_qssa.seis"));
+y_admm_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zy_admm_qssa.seis"));
+z_admm_fkt,_,_ = SeisRead(joinpath(dir_path,"iso_vsp01_zz_admm_qssa.seis"));
 
 # residuals fkt
 r1 = ozz .- z_pgd_fkt;

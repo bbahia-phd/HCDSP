@@ -1,7 +1,7 @@
 pwd()
 
 using Distributed
-addprocs(24);
+addprocs(4);
 
 @everywhere dev_dir = "/dev/Breno_GOM/projects";
 cd(dev_dir)
@@ -70,6 +70,12 @@ for i in eachindex(hzz)
     ozz[:,sxi,syi,gel] += dzz[:,i]
 end
 
+# select crg
+icrg = 15;
+ozx = Float64.(ozx[:,:,:,icrg])
+ozy = Float64.(ozy[:,:,:,icrg])
+ozz = Float64.(ozz[:,:,:,icrg])
+
 #nshots
 nshots = ns*nsline
 
@@ -80,7 +86,7 @@ dt = 0.012
 rec_length = dt*nt
 
 # shooting grid in indexes
-grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline]
+grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline];
 
 # boat shooting positions
 boat1 = copy(grid[:,1:103]); # from (1,1)
@@ -90,7 +96,7 @@ boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2); # from (205,205)
 nb1 = prod(size(boat1));
 nb2 = prod(size(boat2));
 
-# seed
+# Set seed
 Random.seed!(1992)
 
 # boat shooting times
@@ -99,7 +105,7 @@ tb1 = collect(0 : rec_length : rec_length*(nb1-1));
 tmp = round.(Int, (tb1 .+ 3 .* rand(nb1)) ./ dt);
 tb2 = sort(tmp .* dt)[1:nb2];
 
-i=10
+i=10;
 [tb1[i] tb2[i]]
 
 nsx = [];
@@ -140,7 +146,7 @@ bFwd(x) = QBlendOp(x, PARAM, "fwd");
 bAdj(x) = QBlendOp(x, PARAM, "adj");
 
 # Threshold schedule
-@everywhere Pi, Pf, K = 99.9, 0.1, 101
+@everywhere Pi, Pf, K = 99.9, 0.01, 101
 
 # Params for patching
 psize = nextpow.(2,(100,20,20));
@@ -215,98 +221,84 @@ it_fp_fkt_mis   = Vector{Vector{Float64}}(undef,nr);
 it_admm_fkt_mis = Vector{Vector{Float64}}(undef,nr);
 
 # tolerance
-ε=1e-6;
+ε=1e-16;
 
-for icrg in 1:nr
+println("Deblend $icrg-th CRG")
+q = quaternion(ozx,ozy,ozz);
 
-    println("Deblend $icrg-th CRG:")
-    
-    # Select a CRG
-    x = Float64.(ozx[:,:,:,icrg]);
-    y = Float64.(ozy[:,:,:,icrg]);
-    z = Float64.(ozz[:,:,:,icrg]);
-    q = quaternion(x,y,z);
+# Inverse crime: model observed data
+b  = bFwd(q);
 
-    # Inverse crime: model observed data
-    b  = bFwd(q);
+# Pseudo-deblended
+db = bAdj(b);
 
-    # Pseudo-deblended
-    db = bAdj(b);
+# Patching
+dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
 
-    # Patching
-    dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
+# Threshold scheduler (it should be √.(sched) but that is too much)
+sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
 
-    # Threshold scheduler (it should be √.(sched) but that is too much)
-    sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
-   
-#=  
-    ### Already good ###
+# PGD step-size (< 1/β ≈ 0.5)
+α = 0.5;
 
-    # PGD step-size (< 1/β ≈ 0.5)
-    α = 0.5;
+# Deblending by inversion
+tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
+                    proj!, (psize,polap,smin,smax,sched);
+                    ideal = q, α=α,
+                    verbose=true,
+                    maxIter=K,
+                    ε=ε);
 
-    # Deblending by inversion
-    tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
-                        proj!, (psize,polap,smin,smax,sched);
-                        ideal = q, α=α,
-                        verbose=true,
-                        maxIter=K,
-                        ε=ε);
-    
-    # Store inversion results
-    x_pgd_fkt[:,:,:,icrg] .= imagi.(tmp);
-    y_pgd_fkt[:,:,:,icrg] .= imagj.(tmp);
-    z_pgd_fkt[:,:,:,icrg] .= imagk.(tmp);
+# Store inversion results
+x_pgd_fkt .= imagi.(tmp);
+y_pgd_fkt .= imagj.(tmp);
+z_pgd_fkt .= imagk.(tmp);
 
-    it_pgd_fkt_snr[icrg] = tmp_it[:snr];
-    it_pgd_fkt_mis[icrg] = tmp_it[:misfit];
+it_pgd_fkt_snr[icrg] = tmp_it[:snr];
+it_pgd_fkt_mis[icrg] = tmp_it[:misfit];
 
-    ###
-=#
-    # RED reg param
-    λ = 0.1;
+# RED reg param
+λ = 0.1;
 
-    # Deblending by inversion    
-    tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
-                         proj!, (psize,polap,smin,smax,sched);
-                         ideal = q,
-                         verbose=false,
-                         max_iter_o=K,
-                         max_iter_i=10,
-                         ε=ε);
-    
-    # Store inversion results
-    x_fp_fkt[:,:,:,icrg] .= imagi.(tmp);
-    y_fp_fkt[:,:,:,icrg] .= imagj.(tmp);
-    z_fp_fkt[:,:,:,icrg] .= imagk.(tmp);
+# Deblending by inversion    
+tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
+                     proj!, (psize,polap,smin,smax,sched);
+                     ideal = q,
+                     verbose=true,
+                     max_iter_o=K,
+                     max_iter_i=10,
+                     ε=ε);
 
-    it_fp_fkt_snr[icrg] = tmp_it[:snr];
-    it_fp_fkt_mis[icrg] = tmp_it[:misfit];
- 
-    # RED reg & admm param
-    λ = 0.1; γ = 0.1;
+# Store inversion results
+x_fp_fkt .= imagi.(tmp);
+y_fp_fkt .= imagj.(tmp);
+z_fp_fkt .= imagk.(tmp);
 
-    # Deblending by inversion    
-    tmp,tmp_it = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
-                           proj!, (psize,polap,smin,smax,sched);
-                           ideal = q,
-                           verbose=false,
-                           max_iter_o=K,
-                           max_iter_i1=10,
-                           max_iter_i2=1,
-                           ε=ε);
+it_fp_fkt_snr[icrg] = tmp_it[:snr];
+it_fp_fkt_mis[icrg] = tmp_it[:misfit];
 
-    # Store inversion results
-    x_admm_fkt[:,:,:,icrg] .= imagi.(tmp);
-    y_admm_fkt[:,:,:,icrg] .= imagj.(tmp);
-    z_admm_fkt[:,:,:,icrg] .= imagk.(tmp);
+# RED reg & admm param
+λ = 0.1; γ = 0.1;
 
-    it_admm_fkt_snr[icrg] = tmp_it[:snr];
-    it_admm_fkt_mis[icrg] = tmp_it[:misfit];
+# Deblending by inversion    
+tmp,tmp_it = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
+                       proj!, (psize,polap,smin,smax,sched);
+                       ideal = q,
+                       verbose=true,
+                       max_iter_o=K,
+                       max_iter_i1=10,
+                       max_iter_i2=1,
+                       ε=ε);
 
-    @show [it_fp_fkt_snr[icrg][end] it_admm_fkt_snr[icrg][end]]
+# Store inversion results
+x_admm_fkt .= imagi.(tmp);
+y_admm_fkt .= imagj.(tmp);
+z_admm_fkt .= imagk.(tmp);
 
-end
+it_admm_fkt_snr[icrg] = tmp_it[:snr];
+it_admm_fkt_mis[icrg] = tmp_it[:misfit];
+
+#######################################################
 
 dbx = similar(x_pgd_fkt);
 dby = similar(x_pgd_fkt);
@@ -340,81 +332,41 @@ SeisWrite("files/iso_vsp01/iso_vsp01_zx_pseudo.seis",dbx,hzz,ext)
 SeisWrite("files/iso_vsp01/iso_vsp01_zy_pseudo.seis",dby,hzz,ext)
 SeisWrite("files/iso_vsp01/iso_vsp01_zz_pseudo.seis",dbz,hzz,ext)
 
-SeisWrite("files/iso_vsp01/iso_vsp01_zx_pgd_qfkt.seis",x_pgd_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zy_pgd_qfkt.seis",y_pgd_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zz_pgd_qfkt.seis",z_pgd_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zx_pgd_qssa.seis",x_pgd_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zy_pgd_qssa.seis",y_pgd_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_pgd_qssa.seis",z_pgd_fkt,hzz,ext)
 
-SeisWrite("files/iso_vsp01/iso_vsp01_zx_fp_qfkt.seis",x_fp_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zy_fp_qfkt.seis",y_fp_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_qfkt.seis",z_fp_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zx_fp_qssa.seis",x_fp_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zy_fp_qssa.seis",y_fp_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_qssa.seis",z_fp_fkt,hzz,ext)
 
-SeisWrite("files/iso_vsp01/iso_vsp01_zx_admm_qfkt.seis",x_admm_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zy_admm_qfkt.seis",y_admm_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zz_admm_qfkt.seis",z_admm_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zx_admm_qssa.seis",x_admm_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zy_admm_qssa.seis",y_admm_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_admm_qssa.seis",z_admm_fkt,hzz,ext)
 
-snr_pgd = zeros(nr,K,3);
-snr_fp = zeros(nr,K,3);
-snr_admm = zeros(nr,K,3);
-
-mis_pgd = zeros(nr,K);
-mis_fp = zeros(nr,K);
-mis_admm = zeros(nr,K);
-
-for i in 1:nr
-    for k in 1:length(it_admm_fkt_snr[i])
-        mis_admm[i,k] = it_admm_fkt_mis[i][k]
-        for j in 1:3
-            snr_admm[i,k,j] = it_admm_fkt_snr[i][k][j]
-        end
-    end
-    
-    for k in 1:length(it_fp_fkt_snr[i])
-        mis_fp[i,k] = it_fp_fkt_mis[i][k]
-        for j in 1:3
-            snr_fp[i,k,j] = it_fp_fkt_snr[i][k][j]
-        end
-    end
-
-    for k in 1:length(it_pgd_fkt_snr[i])
-        mis_pgd[i,k] = it_pgd_fkt_mis[i][k]
-        for j in 1:3
-            snr_pgd[i,k,j] = it_pgd_fkt_snr[i][k][j]
-        end
-    end   
-end
-
-# example to extract all iterations for the z component from crg 15
-# snr_pgd[1,:,3] (general snr_pgd[icrg,1:iter,ic])
 
 fname = joinpath(dir_path,"all_iter_hist_qfkt.h5")
 
 using HDF5
 
 fid = h5open(fname,"w")
-fid["admm/snr"] = snr_admm
-fid["fp/snr"]   = snr_fp
-fid["pgd/snr"]  = snr_pgd
 
-fid["admm/mis"] = mis_admm
-fid["fp/mis"]   = mis_fp
-fid["pgd/mis"]  = mis_pgd
-
-close(fid)
-
-#=
 create_group(fid,"admm/snr")
-create_group(fid,"admm/snr/y")
-create_group(fid,"admm/snr/z")
-
 create_group(fid,"fp/snr")
-create_group(fid,"fp/snr/y")
-create_group(fid,"fp/snr/z")
-
 create_group(fid,"pgd/snr")
-create_group(fid,"pgd/snr/y")
-create_group(fid,"pgd/snr/z")
 
 create_group(fid,"admm/mis")
 create_group(fid,"fp/mis")
 create_group(fid,"pgd/mis")
-=#
+
+for i in 1:nr
+    fid["admm"]["snr"]["$i"] = it_admm_fkt_snr[i]
+    fid["fp"]["snr"]["$i"]   = it_fp_fkt_snr[i]
+    fid["pgd"]["snr"]["$i"]  = it_pgd_fkt_snr[i]
+
+    fid["admm"]["mis"]["$i"] = it_admm_fkt_mis[i]
+    fid["fp"]["mis"]["$i"]   = it_fp_fkt_mis[i]
+    fid["pgd"]["mis"]["$i"]  = it_pgd_fkt_mis[i]
+end
+
+close(fid)

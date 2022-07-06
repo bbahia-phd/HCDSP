@@ -1,7 +1,7 @@
 pwd()
 
 using Distributed
-addprocs(9);
+addprocs(19);
 
 @everywhere dev_dir = "/dev/Breno_GOM/projects";
 cd(dev_dir)
@@ -15,19 +15,24 @@ Pkg.status()
 @everywhere using LinearAlgebra
 @everywhere using FFTW
 @everywhere using HCDSP
+@everywhere using Random
 
 @everywhere include(joinpath(dev_dir,"dev/deblending/src/deblend_module.jl"))
-@everywhere import Main.deblend_module: BlendOp
+@everywhere import Main.deblend_module: BlendOp, QBlendOp
 
 using PyPlot
 using SeisMain, SeisPlot
 
 # data dir home
 dir_path  = joinpath(dev_dir,"files/iso_vsp01")
-data_path = joinpath(dir_path,"iso_vsp01_zz.seis");
+dx_path = joinpath(dir_path,"iso_vsp01_zx.seis");
+dy_path = joinpath(dir_path,"iso_vsp01_zy.seis");
+dz_path = joinpath(dir_path,"iso_vsp01_zz.seis");
 
 # read data
-dzz,hzz,ext_zz = SeisRead(data_path);
+dzx,hzx,ext_zx = SeisRead(dx_path);
+dzy,hzy,ext_zy = SeisRead(dy_path);
+dzz,hzz,ext_zz = SeisRead(dz_path);
 
 # get geometry
 sx = SeisMain.ExtractHeader(hzz,"sx");
@@ -50,10 +55,9 @@ sy_max = sy |> maximum;
 gl_min = gl |> maximum;
 gl_max = gl |> minimum;
 
+ozx = zeros(eltype(dzx),nt,ns,nsline,nr);
+ozy = zeros(eltype(dzy),nt,ns,nsline,nr);
 ozz = zeros(eltype(dzz),nt,ns,nsline,nr);
-pgd_fkt  = similar(ozz);
-fp_fkt   = similar(ozz);
-admm_fkt = similar(ozz);
 
 for i in eachindex(hzz)
 
@@ -64,18 +68,27 @@ for i in eachindex(hzz)
     syi = floor(Int,(h.sy - sy_min)/drz)+1
     gel = floor(Int,(-h.gelev + gl_min)/drz)+1
 
+    ozx[:,sxi,syi,gel] += dzx[:,i]
+    ozy[:,sxi,syi,gel] += dzy[:,i]
     ozz[:,sxi,syi,gel] += dzz[:,i]
 end
 
 #nshots
 nshots = ns*nsline
 
-dt = 0.012f0
+# time sampling
+dt = 0.012
 
 # record length
 rec_length = dt*nt
 
+# total time for conventional acqusition
+tconv = rec_length*nshots
+
 grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline]
+
+# seed
+Random.seed!(1992)
 
 # boat shooting positions
 boat1 = copy(grid[:,1:103])
@@ -111,12 +124,7 @@ end
 
 isx = Vector{Int64}(undef,nshots); isx .= nsx;
 isy = Vector{Int64}(undef,nshots); isy .= nsy;
-tau = Vector{Float32}(undef,nshots); tau .= tmp;
-
-# blending factor
-t_conv = rec_length*nshots
-t_blend = maximum(tau) + rec_length -1
-β = t_conv/t_blend;
+tau = Vector{Float64}(undef,nshots); tau .= tmp;
 
 #
 PARAM = (nt = nt,
@@ -127,17 +135,17 @@ PARAM = (nt = nt,
          sx = isx,
          sy = isy)
 
-bFwd(x) = BlendOp(x, PARAM, "fwd");
-bAdj(x) = BlendOp(x, PARAM, "adj");
+bFwd(x) = QBlendOp(x, PARAM, "fwd");
+bAdj(x) = QBlendOp(x, PARAM, "adj");
 
-# parameter selection
-@everywhere fmin=0;fmax=50;rank=5;
-
-# Params for patching
+# Patching
 psize = nextpow.(2,(100,20,20));
 polap = (10,20,20);
-smin = (1,1,1);
-smax = (nt,ns,nsline);
+ smin = (1,1,1);
+ smax = (nt,ns,nsline);
+
+# Threshold schedule
+@everywhere fmin=0;fmax=50;rank=5; K=101;
 
 # Define a patching operator
 function proj!(state, (psize, polap, smin, smax, dt, fmin, fmax, rank))
@@ -148,7 +156,7 @@ function proj!(state, (psize, polap, smin, smax, dt, fmin, fmax, rank))
     it = state.it;
 
     # define ssa function
-    fssa(δ) = fx_process(δ,dt,fmin,fmax,fast_ssa_lanc,(rank))
+    fssa(δ) = fx_process(δ,dt,fmin,fmax,fast_qssa_lanc,(rank))
 
     # apply patching on input
     patches,pid = fwdPatchOp(out, psize, polap, smin, smax);
@@ -163,74 +171,91 @@ function proj!(state, (psize, polap, smin, smax, dt, fmin, fmax, rank))
     return out
 end
 
-it_pgd_fkt_snr  = Vector{Vector{Float32}}(undef,nr);
-it_fp_fkt_snr   = Vector{Vector{Float32}}(undef,nr);
-it_admm_fkt_snr = Vector{Vector{Float32}}(undef,nr);
+x_pgd_fkt = size(ozx) |> zeros;
+y_pgd_fkt = size(ozy) |> zeros;
+z_pgd_fkt = size(ozz) |> zeros;
 
-it_pgd_fkt_mis  = Vector{Vector{Float32}}(undef,nr);
-it_fp_fkt_mis   = Vector{Vector{Float32}}(undef,nr);
-it_admm_fkt_mis = Vector{Vector{Float32}}(undef,nr);
+x_fp_fkt = size(ozx) |> zeros;
+y_fp_fkt = size(ozy) |> zeros;
+z_fp_fkt = size(ozz) |> zeros;
+
+x_admm_fkt = size(ozx) |> zeros;
+y_admm_fkt = size(ozy) |> zeros;
+z_admm_fkt = size(ozz) |> zeros;
+
+it_pgd_fkt_snr  = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
+it_fp_fkt_snr   = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
+it_admm_fkt_snr = Vector{Vector{Tuple{Float64,Float64,Float64}}}(undef,nr);
+
+it_pgd_fkt_mis  = Vector{Vector{Float64}}(undef,nr);
+it_fp_fkt_mis   = Vector{Vector{Float64}}(undef,nr);
+it_admm_fkt_mis = Vector{Vector{Float64}}(undef,nr);
 
 # tolerance
-ε=Float32(1e-4);
+ε=1e-6;
 
 for icrg in 1:nr
 
     println("Deblend $icrg-th CRG")
     
     # Select a CRG
-    tmpz = ozz[:,:,:,icrg];
+    x = Float64.(ozx[:,:,:,icrg]);
+    y = Float64.(ozy[:,:,:,icrg]);
+    z = Float64.(ozz[:,:,:,icrg]);
+    q = quaternion(x,y,z);
 
     # Inverse crime: model observed data
-    b  = bFwd(tmpz);
+    b  = bFwd(q);
 
     # Pseudo-deblended
     db = bAdj(b);
-
-    # Patching
-    dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
-
+ 
     # PGD step-size (< 1/β ≈ 0.5)
-    α = Float32(0.2);
+    α = 0.5;
 
     # Deblending by inversion
     tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
                         proj!, (psize,polap,smin,smax,dt,fmin,fmax,rank);
-                        ideal = tmpz, α=α,
+                        ideal = q, α=α,
                         verbose=true,
                         maxIter=K,
                         ε=ε);  
     
     # Store inversion results
-    pgd_fkt[:,:,:,icrg] .= tmp;
+    x_pgd_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_pgd_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_pgd_fkt[:,:,:,icrg] .= imagk.(tmp);
+
     it_pgd_fkt_snr[icrg] = tmp_it[:snr];
     it_pgd_fkt_mis[icrg] = tmp_it[:misfit];
     
     # RED reg param
-    λ = Float32(0.2);
+    λ = 0.1;
 
     # Deblending by inversion    
     tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
                          proj!, (psize,polap,smin,smax,dt,fmin,fmax,rank);
-                         ideal = tmpz,
+                         ideal = q,
                          verbose=true,
                          max_iter_o=K,
                          max_iter_i=10,
                          ε=ε);
     
     # Store inversion results
-    fp_fkt[:,:,:,icrg] .= tmp;
+    x_fp_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_fp_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_fp_fkt[:,:,:,icrg] .= imagk.(tmp);
+
     it_fp_fkt_snr[icrg] = tmp_it[:snr];
     it_fp_fkt_mis[icrg] = tmp_it[:misfit];
- 
+
     # RED reg & admm param
-    λ = Float32(0.1);
-    γ = Float32(0.1);
+    λ = 0.1; γ = 0.1;
 
     # Deblending by inversion    
     tmp,tmp_it = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
                            proj!, (psize,polap,smin,smax,dt,fmin,fmax,rank);
-                           ideal = tmpz,
+                           ideal = q,
                            verbose=true,
                            max_iter_o=K,
                            max_iter_i1=10,
@@ -238,43 +263,76 @@ for icrg in 1:nr
                            ε=ε);
 
     # Store inversion results
-    admm_fkt[:,:,:,icrg] .= tmp;
+    x_admm_fkt[:,:,:,icrg] .= imagi.(tmp);
+    y_admm_fkt[:,:,:,icrg] .= imagj.(tmp);
+    z_admm_fkt[:,:,:,icrg] .= imagk.(tmp);
+
     it_admm_fkt_snr[icrg] = tmp_it[:snr];
     it_admm_fkt_mis[icrg] = tmp_it[:misfit];
 end
 
+dbx = similar(x_pgd_fkt); dby = similar(x_pgd_fkt); dbz = similar(x_pgd_fkt);
+for icrg in 1:nr
+
+    println("Deblend $icrg-th CRG")
+    
+    # Select a CRG
+    tmpx = Float64.(ozx[:,:,:,icrg]);
+    tmpy = Float64.(ozy[:,:,:,icrg]);
+    tmpz = Float64.(ozz[:,:,:,icrg]);
+    
+    # Inverse crime: model observed data
+    b = bFwd(quaternion(tmpx,tmpy,tmpz));
+    tmp = bAdj(b);
+    
+    # Pseudo-deblended
+    dbx[:,:,:,icrg] .= imagi.(tmp);
+    dby[:,:,:,icrg] .= imagj.(tmp);
+    dbz[:,:,:,icrg] .= imagk.(tmp);
+end
+
 ext = ext_zz;
 ext.n2 = 205; ext.n3=205; ext.n4=31;
-ext.label2="source line"; ext.unit2="index";
+ext.label2="source line";   ext.unit2="index";
 ext.label3="source number"; ext.unit3="index";
-ext.label4="receiver"; ext.unit4="index";
+ext.label4="receiver";      ext.unit4="index";
 
-SeisWrite("files/iso_vsp01/iso_vsp01_zz_pgd_ssa.seis",pgd_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_ssa.seis",fp_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zz_admm_ssa.seis",admm_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zx_pseudo.seis",dbx,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zy_pseudo.seis",dby,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_pseudo.seis",dbz,hzz,ext)
 
-fname = joinpath(dir_path,"all_iter_hist_ssa.h5")
+SeisWrite("files/iso_vsp01/iso_vsp01_zx_pgd_qssa.seis",x_pgd_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zy_pgd_qssa.seis",y_pgd_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_pgd_qssa.seis",z_pgd_fkt,hzz,ext)
+
+SeisWrite("files/iso_vsp01/iso_vsp01_zx_fp_qssa.seis",x_fp_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zy_fp_qssa.seis",y_fp_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_qssa.seis",z_fp_fkt,hzz,ext)
+
+SeisWrite("files/iso_vsp01/iso_vsp01_zx_admm_qssa.seis",x_admm_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zy_admm_qssa.seis",y_admm_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_admm_qssa.seis",z_admm_fkt,hzz,ext)
+
+fname = joinpath(dir_path,"all_iter_hist_qssa.h5")
 
 using HDF5
 
 fid = h5open(fname,"w")
 
-create_group(fid,"admm/snr")
-create_group(fid,"fp/snr")
-create_group(fid,"pgd/snr")
+create_group(fid,"admm/snr/x")
+create_group(fid,"admm/snr/y")
+create_group(fid,"admm/snr/z")
+
+create_group(fid,"fp/snr/x")
+create_group(fid,"fp/snr/y")
+create_group(fid,"fp/snr/z")
+
+create_group(fid,"pgd/snr/x")
+create_group(fid,"pgd/snr/y")
+create_group(fid,"pgd/snr/z")
 
 create_group(fid,"admm/mis")
 create_group(fid,"fp/mis")
 create_group(fid,"pgd/mis")
-
-for i in 1:nr
-    fid["admm"]["snr"]["$i"] = it_admm_fkt_snr[i]
-    fid["fp"]["snr"]["$i"]   = it_fp_fkt_snr[i]
-    fid["pgd"]["snr"]["$i"]  = it_pgd_fkt_snr[i]
-
-    fid["admm"]["mis"]["$i"] = it_admm_fkt_mis[i]
-    fid["fp"]["mis"]["$i"]   = it_fp_fkt_mis[i]
-    fid["pgd"]["mis"]["$i"]  = it_pgd_fkt_mis[i]
-end
 
 close(fid)

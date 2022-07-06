@@ -15,7 +15,6 @@ Pkg.status()
 @everywhere using LinearAlgebra
 @everywhere using FFTW
 @everywhere using HCDSP
-@everywhere using Random
 
 @everywhere include(joinpath(dev_dir,"dev/deblending/src/deblend_module.jl"))
 @everywhere import Main.deblend_module: BlendOp
@@ -88,9 +87,6 @@ boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2) # from (205,205)
 nb1 = prod(size(boat1))
 nb2 = prod(size(boat2))
 
-# seed
-Random.seed!(1992)
-
 # boat shooting times
 tb1 = collect(0 : rec_length : rec_length*(nb1-1))
 
@@ -138,7 +134,7 @@ bFwd(x) = BlendOp(x, PARAM, "fwd");
 bAdj(x) = BlendOp(x, PARAM, "adj");
 
 # Threshold schedule
-@everywhere Pi, Pf, K = 99.9, 0.01, 101
+@everywhere Pi, Pf, K = 99.9, 0.1, 101
 
 # Params for patching
 psize = nextpow.(2,(100,20,20));
@@ -220,13 +216,13 @@ for icrg in 1:nr
     sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
 
     # PGD step-size (< 1/β ≈ 0.5)
-    α = Float32(0.5);
+    α = Float32(0.1);
 
     # Deblending by inversion
     tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
                         proj!, (psize,polap,smin,smax,sched);
                         ideal = tmpz, α=α,
-                        verbose=false,
+                        verbose=true,
                         maxIter=K,
                         ε=Float32(1e-16));
     
@@ -236,13 +232,13 @@ for icrg in 1:nr
     it_pgd_fkt_mis[icrg] = tmp_it[:misfit];
     
     # RED reg param
-    λ = Float32(0.2);
+    λ = Float32(0.5);
 
     # Deblending by inversion    
     tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
                          proj!, (psize,polap,smin,smax,sched);
                          ideal = tmpz,
-                         verbose=false,
+                         verbose=true,
                          max_iter_o=K,
                          max_iter_i=10,
                          ε=Float32(1e-16));
@@ -253,13 +249,14 @@ for icrg in 1:nr
     it_fp_fkt_mis[icrg] = tmp_it[:misfit];
  
     # RED reg & admm param
-    λ = Float32(0.2); γ = Float32(0.2);
+    λ = Float32(0.5);
+    γ = Float32(0.5);
 
     # Deblending by inversion    
     tmp,tmp_it = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
                            proj!, (psize,polap,smin,smax,sched);
                            ideal = tmpz,
-                           verbose=false,
+                           verbose=true,
                            max_iter_o=K,
                            max_iter_i1=10,
                            max_iter_i2=1,
@@ -269,11 +266,25 @@ for icrg in 1:nr
     admm_fkt[:,:,:,icrg] .= tmp;
     it_admm_fkt_snr[icrg] = tmp_it[:snr];
     it_admm_fkt_mis[icrg] = tmp_it[:misfit];
-
-    @show [it_pgd_fkt_snr[icrg][end] it_fp_fkt_snr[icrg][end] it_admm_fkt_snr[icrg][end]]
-    
 end
 
+db = similar(pgd_fkt);
+for icrg in 1:nr
+
+    println("Deblend $icrg-th CRG")
+    
+    # Select a CRG
+    tmpz = ozz[:,:,:,icrg];
+
+    # Inverse crime: model observed data
+    b  = bFwd(tmpz);
+
+    # Pseudo-deblended
+    db[:,:,:,icrg] = bAdj(b);
+end
+
+SeisWrite("files/iso_vsp01/iso_vsp01_ozz.seis",ozz,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_pseudo.seis",db,hzz,ext)
 SeisWrite("files/iso_vsp01/iso_vsp01_zz_pgd_fkt.seis",pgd_fkt,hzz,ext)
 SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_fkt.seis",fp_fkt,hzz,ext)
 SeisWrite("files/iso_vsp01/iso_vsp01_zz_admm_fkt.seis",admm_fkt,hzz,ext)
