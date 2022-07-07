@@ -1,14 +1,14 @@
 pwd()
 
-dev_dir="/dev/Breno_GOM/projects/";
+#dev_dir="/dev/Breno_GOM/projects/";
 
-cd(dev_dir)
-#cd(joinpath(homedir(),"projects"))
+#cd(dev_dir)
+cd(joinpath(homedir(),"projects"))
 
 pwd()
 
 using Pkg
-Pkg.activate(joinpath(dev_dir,"HCDSP/"))
+Pkg.activate(joinpath(pwd(),"HCDSP/"))
 Pkg.status()
 
 using Revise
@@ -26,21 +26,21 @@ function get_mode_data(;nx1=40,nx2=40,nx3=1,nx4=1)
     params_zx = (ot=0.0, dt=0.004, nt=100, ox1=0.0, dx1=10.0,
     nx1=nx1, ox2=0.0, dx2=10.0, nx2=nx2, ox3=0.0, dx3=10.0,
     nx3=nx3, ox4=0.0, dx4=10.0, nx4=nx4, tau=[0.1],
-    p1=[0.0001],p2=[0.0],p3=[0.0],p4=[0.0],
+    p1=[0.0001],p2=[-0.0001],p3=[0.0002],p4=[-0.0002],
     amp=[1.0], f0=20.0)
     p = SeisLinearEvents(; params_zx...);
 
     params_zy = (ot=0.0, dt=0.004, nt=100, ox1=0.0, dx1=10.0,
     nx1=nx1, ox2=0.0, dx2=10.0, nx2=nx2, ox3=0.0, dx3=10.0,
     nx3=nx3, ox4=0.0, dx4=10.0, nx4=nx4, tau=[0.25],
-    p1=[-0.0003],p2=[0.0],p3=[0.0],p4=[0.0],
+    p1=[-0.0003],p2=[0.0003],p3=[-0.0001],p4=[0.0002],
     amp=[-1.0], f0=20.0)
     sv = SeisLinearEvents(; params_zy...);
 
     params_zz = (ot=0.0, dt=0.004, nt=100, ox1=0.0, dx1=10.0,
     nx1=nx1, ox2=0.0, dx2=10.0, nx2=nx2, ox3=0.0, dx3=10.0,
     nx3=nx3, ox4=0.0, dx4=10.0, nx4=nx4, tau=[0.3],
-    p1=[-0.0002],p2=[0.0],p3=[0.0],p4=[0.0],
+    p1=[-0.0002],p2=[0.0001],p3=[-0.0003],p4=[0.0001],
     amp=[-1.0], f0=20.0)
     sh = SeisLinearEvents(; params_zz...);
 
@@ -76,7 +76,7 @@ function mix(p,sv,sh)
 end
 
 # clean & pure seismic modes
-p,sv,sh = get_mode_data();
+p,sv,sh = get_mode_data(nx1=20,nx2=20,nx3=20,nx4=20);
 
 # mixed observed displacements
 dzz,dzy,dzx = mix(p,sv,sh);
@@ -130,10 +130,10 @@ aqx = quality(imagi.(Qa),dzx)
 aqy = quality(imagj.(Qa),dzy)
 aqz = quality(imagk.(Qa),dzz)
 
-n=10;
+n=15;
 clf();close("all")
 SeisPlotTX(
-    [dzx[:,:,n] imagi.(Qt)[:,:,n] Xo[:,:,n] imagi.(Qo)[:,:,n] imagi.(Qa)[:,:,n] (dzx .- Xo)[:,:,n] (dzx .- imagi.(Qo))[:,:,n] (dzx .- imagi.(Qa))[:,:,n]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
+    [dzx[:,:,n] imagi.(Qt)[:,:,n] Xo[:,:,n] imagi.(Qo)[:,:,n] imagi.(Qa)[:,:,n] (dzx .- Xo)[:,:,n] (dzx .- imagi.(Qo))[:,:,n] (dzx .- imagi.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=5.0,style="overlay");
 gcf()
 
 clf();close("all")
