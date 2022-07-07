@@ -135,7 +135,6 @@ function fx_process(IN::AbstractArray{Quaternion{T}}, dt::Real, fmin::Real, fmax
         OUTF[iω,indx] .= Op(INF[iω,indx], args...)
     end
 
-
     @inbounds for iω in nfft-ω_range[end]+2:nfft-ω_range[1]+1
         # Filtering
         OUTF[iω,indx] .= Op(INF[iω,indx], args...)

@@ -5,21 +5,22 @@ pwd()
 #cd(dev_dir)
 cd(joinpath(homedir(),"projects"))
 
-pwd()
+using Distributed
 
-using Pkg
-Pkg.activate(joinpath(pwd(),"HCDSP/"))
-Pkg.status()
+addprocs(7);
 
-using Revise
+@everywhere using Pkg
+@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
 
-using FFTW
+@everywhere using Revise
+@everywhere using LinearAlgebra
+@everywhere using FFTW
+@everywhere using HCDSP
+@everywhere using Random
+
 using PyPlot
-using LinearAlgebra
-using StatsBase,Statistics
 using SeisMain, SeisPlot
-using HCDSP
-
+using HDF5
 
 function get_mode_data(;nx1=40,nx2=40,nx3=1,nx4=1)
 
@@ -84,9 +85,9 @@ dzz,dzy,dzx = mix(p,sv,sh);
 fmin = 0.0; fmax = 60.0; dt = 0.004;
 
 # Define operator to act on a frequency slice d
-imp_ssa(d,k)   = HCDSP.imputation_op(d,HCDSP.fast_ssa_lanc,  (k); iter=10)
-imp_qssa(d,k)  = HCDSP.imputation_op(d,HCDSP.fast_qssa_lanc, (k); iter=10)
-imp_aqssa(d,k) = HCDSP.imputation_op(d,HCDSP.fast_aqssa_lanc,(k); iter=10)
+@everywhere imp_ssa(d,k)   = HCDSP.imputation_op(d,HCDSP.fast_ssa_lanc,  (k); iter=10)
+@everywhere imp_qssa(d,k)  = HCDSP.imputation_op(d,HCDSP.fast_qssa_lanc, (k); iter=10)
+@everywhere imp_aqssa(d,k) = HCDSP.imputation_op(d,HCDSP.fast_aqssa_lanc,(k); iter=10)
 
 # SNRs
 snrx,snry,snrz=0.8,1.0,1.2;
@@ -100,7 +101,7 @@ dnz = SeisAddNoise(dzz, snrz, db=true, L=3);
 Qt = quaternion(dnx,dny,dnz);
 
 # decimations to test
-perc = 50;
+perc = 60;
 
 # Missing traces
 Qt .= decimate_traces(Qt,perc);
@@ -108,14 +109,14 @@ Qt .= decimate_traces(Qt,perc);
 # ranks to test
 k = 8;
 
-# Component-wise processing
-Xo = fx_process(imagi.(Qt),dt,fmin,fmax,imp_ssa,(k));
-Yo = fx_process(imagj.(Qt),dt,fmin,fmax,imp_ssa,(k));
-Zo = fx_process(imagk.(Qt),dt,fmin,fmax,imp_ssa,(k));
-
 # Call fx_process with Q imputation
-Qo = fx_process(Qt,dt,fmin,fmax,imp_qssa,(k));
-Qa = fx_process(Qt,dt,fmin,fmax,imp_aqssa,(12));
+Qo = pmap_fx_process(Qt,dt,fmin,fmax,imp_qssa,(k));
+Qa = pmap_fx_process(Qt,dt,fmin,fmax,imp_aqssa,(12));
+
+# Component-wise processing
+Xo = pmap_fx_process(imagi.(Qt),dt,fmin,fmax,imp_ssa,(k));
+Yo = pmap_fx_process(imagj.(Qt),dt,fmin,fmax,imp_ssa,(k));
+Zo = pmap_fx_process(imagk.(Qt),dt,fmin,fmax,imp_ssa,(k));
 
 # Get quality
 rx = quality(Xo,dzx)

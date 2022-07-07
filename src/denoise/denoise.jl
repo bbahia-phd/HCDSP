@@ -1,4 +1,5 @@
 export fx_process,
+        pmap_fx_process,
         SVDSSAOp,
         rank_reduction,
         rQROp,
@@ -16,6 +17,7 @@ export fx_process,
         fast_qssa_qr
 
 include("fx_process.jl")
+include("pmap_fx_process.jl")
 include("SVDSSAOp.jl")
 include("rQROp.jl")
 include("BFGDSSAOp.jl")
