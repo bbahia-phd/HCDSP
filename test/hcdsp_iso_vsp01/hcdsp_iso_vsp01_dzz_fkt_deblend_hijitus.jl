@@ -275,7 +275,7 @@ for icrg in 1:nr
 end
 
 SeisWrite("files/iso_vsp01/iso_vsp01_zz_pgd_fkt.seis",pgd_fkt,hzz,ext)
-SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_fkt.seis",fp_fkt,hzz,ext)
+SeisWrite("files/iso_vsp01/iso_vsp01_zz_fp_fkt.seis", fp_fkt,hzz,ext)
 SeisWrite("files/iso_vsp01/iso_vsp01_zz_admm_fkt.seis",admm_fkt,hzz,ext)
 
 fname = joinpath(dir_path,"all_iter_hist_fkt.h5")

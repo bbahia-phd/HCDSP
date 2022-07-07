@@ -12,6 +12,7 @@ addprocs(4);
 @everywhere using LinearAlgebra
 @everywhere using FFTW
 @everywhere using HCDSP
+@everywhere using Random
 
 @everywhere include("./dev/deblending/src/deblend_module.jl")
 @everywhere using Main.deblend_module
@@ -46,17 +47,12 @@ sy_max = sy |> maximum;
 gl_min = gl |> maximum;
 gl_max = gl |> minimum;
 
-@assert ns*nsline*nr == ntr
-
 ozz = zeros(eltype(dzz),nt,ns,nsline,nr);
-pgd_fkt  = similar(ozz);
-fp_fkt   = similar(ozz);
-admm_fkt = similar(ozz);
 
-for i in eachindex(hzx)
+for i in eachindex(hzz)
 
     # i-th trace header
-    h = hzx[i]
+    h = hzz[i]
 
     sxi = floor(Int,(h.sx - sx_min)/drz)+1
     syi = floor(Int,(h.sy - sy_min)/drz)+1
@@ -66,6 +62,9 @@ for i in eachindex(hzx)
 
 end
 
+# Get one CRG
+ozz = ozz[:,:,:,15];
+
 #nshots
 nshots = ns*nsline
 
@@ -74,17 +73,20 @@ dt = 0.012f0
 # record length
 rec_length = dt*nt
 
-grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline]
+grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline];
 
 # boat shooting positions
-boat1 = copy(grid[:,1:103])
-boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2)
+boat1 = copy(grid[:,1:103]);
+boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2);
 
-nb1 = prod(size(boat1))
-nb2 = prod(size(boat2))
+nb1 = prod(size(boat1));
+nb2 = prod(size(boat2));
+
+# Random seed
+Random.seed!(1992)
 
 # boat shooting times
-tb1 = collect(0 : rec_length : rec_length*(nb1-1))
+tb1 = collect(0 : rec_length : rec_length*(nb1-1));
 
 tmp = round.(Int, (tb1 .+ 3 .* rand(nb1)) ./ dt)
 tb2 = sort(tmp .* dt)[1:nb2]
@@ -130,7 +132,7 @@ bFwd(x) = BlendOp(x, PARAM, "fwd");
 bAdj(x) = BlendOp(x, PARAM, "adj");
 
 # Threshold schedule
-@everywhere Pi, Pf, K = 99.9, 0.1, 101
+@everywhere Pi, Pf, K = 99.9, 0.01, 101
 
 # Params for patching
 psize = nextpow.(2,(100,20,20));
@@ -184,6 +186,8 @@ end
     return out
 end
 
+nr = 1;
+ 
 it_pgd_fkt_snr  = Vector{Vector{Float32}}(undef,nr);
 it_fp_fkt_snr   = Vector{Vector{Float32}}(undef,nr);
 it_admm_fkt_snr = Vector{Vector{Float32}}(undef,nr);
@@ -192,80 +196,123 @@ it_pgd_fkt_mis  = Vector{Vector{Float32}}(undef,nr);
 it_fp_fkt_mis   = Vector{Vector{Float32}}(undef,nr);
 it_admm_fkt_mis = Vector{Vector{Float32}}(undef,nr);
 
-for icrg in 1:nr
+pgd_fkt  = similar(ozz);
+fp_fkt   = similar(ozz);
+admm_fkt = similar(ozz);
 
-    println("Deblend $icrg-th CRG")
-    
-    # Select a CRG
-    tmpz = ozz[:,:,:,icrg];
+# Select a CRG
+tmpz = ozz;
 
-    # Inverse crime: model observed data
-    b  = bFwd(tmpz);
+# Inverse crime: model observed data
+b  = bFwd(tmpz);
 
-    # Pseudo-deblended
-    db = bAdj(b);
+# Pseudo-deblended
+db = bAdj(b);
 
-    # Patching
-    dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
+# Patching
+dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
 
-    # Threshold scheduler
-    sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
+# Threshold scheduler
+sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
 
-    # PGD step-size (< 1/β ≈ 0.5)
-    α = Float32(0.5);
+# PGD step-size (< 1/β ≈ 0.5)
+α = Float32(0.5);
 
-    # Deblending by inversion
-    tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
-                        proj!, (psize,polap,smin,smax,sched);
-                        ideal = tmpz, α=α,
-                        verbose=true,
-                        maxIter=K,
-                        ε=Float32(1e-16));
-    
-    # Store inversion results
-    pgd_fkt[:,:,:,icrg] .= tmp;
-    it_pgd_fkt_snr[icrg] = tmp_it[:snr];
-    it_pgd_fkt_mis[icrg] = tmp_it[:misfit];
-    
-    # RED reg param
-    λ = Float32(0.5);
+# Deblending by inversion
+tmp,tmp_it = pgdls!(bFwd, bAdj, b, zero(db),
+                    proj!, (psize,polap,smin,smax,sched);
+                    ideal = tmpz, α=α,
+                    verbose=true,
+                    maxIter=K,
+                    ε=Float32(1e-16));
 
-    # Deblending by inversion    
-    tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
-                         proj!, (psize,polap,smin,smax,sched);
-                         ideal = tmpz,
-                         verbose=true,
-                         max_iter_o=K,
-                         max_iter_i=10,
-                         ε=Float32(1e-16));
-    
-    # Store inversion results
-    fp_fkt[:,:,:,icrg] .= tmp;
-    it_fp_fkt_snr[icrg] = tmp_it[:snr];
-    it_fp_fkt_mis[icrg] = tmp_it[:misfit];
- 
-    # RED reg & admm param
-    λ = Float32(0.5);
-    γ = Float32(0.5);
+# Store inversion results
+pgd_fkt .= tmp;
+it_pgd_fkt_snr = tmp_it[:snr];
+it_pgd_fkt_mis = tmp_it[:misfit];
 
-    # Deblending by inversion    
-    tmp,tmp_it = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
-                           proj!, (psize,polap,smin,smax,sched);
-                           ideal = tmpz,
-                           verbose=true,
-                           max_iter_o=K,
-                           max_iter_i1=10,
-                           max_iter_i2=1,
-                           ε=Float32(1e-16));
+# RED reg param
+λ = Float32(0.2);
 
-    # Store inversion results
-    admm_fkt[:,:,:,icrg] .= tmp;
-    it_admm_fkt_snr[icrg] = tmp_it[:snr];
-    it_admm_fkt_mis[icrg] = tmp_it[:misfit];
-end
+# Deblending by inversion    
+tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
+                     proj!, (psize,polap,smin,smax,sched);
+                     ideal = tmpz,
+                     verbose=true,
+                     max_iter_o=K,
+                     max_iter_i=10,
+                     ε=Float32(1e-16));
+
+# Store inversion results
+fp_fkt .= tmp;
+it_fp_fkt_snr = tmp_it[:snr];
+it_fp_fkt_mis = tmp_it[:misfit];
+
+# RED reg & admm param
+λ = Float32(0.2); γ = Float32(0.2);
+
+# Deblending by inversion    
+tmp,tmp_it = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
+                       proj!, (psize,polap,smin,smax,sched);
+                       ideal = tmpz,
+                       verbose=true,
+                       max_iter_o=K,
+                       max_iter_i1=10,
+                       max_iter_i2=1,
+                       ε=Float32(1e-16));
+
+# Store inversion results
+admm_fkt .= tmp;
+it_admm_fkt_snr = tmp_it[:snr];
+it_admm_fkt_mis = tmp_it[:misfit];
 
 j=50;
-tmp = [ozz[:,:,j] db[:,:,j] pgd_fkt[:,:,j] fp_fkt[:,:,j]];
+tmp = [ozz[:,:,j] db[:,:,j] pgd_fkt[:,:,j] fp_fkt[:,:,j] admm_fkt[:,:,j]];
 a = maximum(tmp[:])*0.2;
 
 SeisPlotTX(tmp,pclip=90,vmin=-a,vmax=a,cmap="gray")
+
+j=50;
+tmp = [ozz[:,:,j] db[:,:,j] 5 .* (ozz .- pgd_fkt)[:,:,j] 5 .* (ozz .- fp_fkt)[:,:,j]  5 .* (ozz .- admm_fkt)[:,:,j]];
+a = maximum(tmp[:])*0.2;
+
+SeisPlotTX(tmp,pclip=99,vmin=-a,vmax=a,cmap="gray")
+
+# data dir home
+data_path = "/media/bbahia/DATA/seismic_data/iso_vsp01";
+
+ext = ext_zz;
+ext.n2 = 205; ext.n3 = 205; ext.n4 = 1;
+ext.label2="source line";   ext.unit2="index";
+ext.label3="source number"; ext.unit3="index";
+ext.label4="receiver";      ext.unit4="index";
+
+SeisWrite(joinpath(data_path,"iso_vsp01_zz_pgd_fkt.seis"), pgd_fkt,hzz,ext)
+SeisWrite(joinpath(data_path,"iso_vsp01_zz_fp_fkt.seis"),  fp_fkt,hzz,ext)
+SeisWrite(joinpath(data_path,"iso_vsp01_zz_admm_fkt.seis"),admm_fkt,hzz,ext)
+
+fname = joinpath(data_path,"all_iter_hist_fkt.h5")
+
+using HDF5
+
+fid = h5open(fname,"w")
+
+create_group(fid,"admm/snr")
+create_group(fid,"fp/snr")
+create_group(fid,"pgd/snr")
+
+create_group(fid,"admm/mis")
+create_group(fid,"fp/mis")
+create_group(fid,"pgd/mis")
+
+for i in 1:nr
+    fid["admm"]["snr"]["$i"] = it_admm_fkt_snr[i]
+    fid["fp"]["snr"]["$i"]   = it_fp_fkt_snr[i]
+    fid["pgd"]["snr"]["$i"]  = it_pgd_fkt_snr[i]
+
+    fid["admm"]["mis"]["$i"] = it_admm_fkt_mis[i]
+    fid["fp"]["mis"]["$i"]   = it_fp_fkt_mis[i]
+    fid["pgd"]["mis"]["$i"]  = it_pgd_fkt_mis[i]
+end
+
+close(fid)

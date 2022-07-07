@@ -1,23 +1,20 @@
 pwd()
 
 using Distributed
-addprocs(5);
+addprocs(9);
 
-#@everywhere dev_dir = "/dev/Breno_GOM/projects";
 @everywhere dev_dir = "/home/bbahia/projects";
 cd(dev_dir)
 pwd()
 
 @everywhere using Pkg
 @everywhere Pkg.activate(joinpath(dev_dir,"HCDSP"))
-#@everywhere Pkg.activate(dev_dir)
 Pkg.status()
 
 @everywhere using Revise
 @everywhere using LinearAlgebra
 @everywhere using FFTW
 @everywhere using HCDSP
-@everywhere using Random
 
 @everywhere include(joinpath(dev_dir,"dev/deblending/src/deblend_module.jl"))
 @everywhere import Main.deblend_module: BlendOp
@@ -26,9 +23,9 @@ using PyPlot
 using SeisMain, SeisPlot
 
 # data dir home
-dir_path  =  "/media/bbahia/DATA/seismic_data/iso_vsp01";
+# data dir home
+dir_path  = "/media/bbahia/DATA/seismic_data/iso_vsp01/"
 
-#joinpath(dev_dir,"files/iso_vsp01")
 dx_path = joinpath(dir_path,"inputs/iso_vsp01_zx.seis");
 dy_path = joinpath(dir_path,"inputs/iso_vsp01_zy.seis");
 dz_path = joinpath(dir_path,"inputs/iso_vsp01_zz.seis");
@@ -83,9 +80,6 @@ ozx = ozx[:,:,:,icrg];
 ozy = ozy[:,:,:,icrg];
 ozz = ozz[:,:,:,icrg];
 
-# clean space
-dzx = []; dzy = []; dzz= [];
-
 #nshots
 nshots = ns*nsline
 
@@ -98,23 +92,20 @@ rec_length = dt*nt
 # total time for conventional acqusition
 tconv = rec_length*nshots
 
-grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline];
+grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline]
 
 # boat shooting positions
-boat1 = copy(grid[:,1:103]);
-boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2);
+boat1 = copy(grid[:,1:103])
+boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2)
 
-nb1 = prod(size(boat1));
-nb2 = prod(size(boat2));
-
-# seed
-@everywhere Random.seed!(0601)
+nb1 = prod(size(boat1))
+nb2 = prod(size(boat2))
 
 # boat shooting times
-tb1 = collect(0 : rec_length : rec_length*(nb1-1));
+tb1 = collect(0 : rec_length : rec_length*(nb1-1))
 
-tmp = round.(Int, (tb1 .+ 3 .* rand(nb1)) ./ dt);
-tb2 = sort(tmp .* dt)[1:nb2];
+tmp = round.(Int, (tb1 .+ 3 .* rand(nb1)) ./ dt)
+tb2 = sort(tmp .* dt)[1:nb2]
 
 i=10
 [tb1[i] tb2[i]]
@@ -146,21 +137,10 @@ PARAM = (nt = nt,
          dt = dt,
          tau = tau,
          sx = isx,
-         sy = isy);
+         sy = isy)
 
 bFwd(x) = QBlendOp(x, PARAM, "fwd");
 bAdj(x) = QBlendOp(x, PARAM, "adj");
-
-#= Dot product
-m1 = quaternion(randn(size(ozx)),randn(size(ozx)),randn(size(ozx)));
-d1 = bFwd(m1);
-
-d2 = quaternion(randn(size(d1)),randn(size(d1)),randn(size(d1)));
-m2 = bAdj(d2);
-
-@test dot(d1,d2) ≈ dot(m1,m2)
-=#
-                                      
 
 # Inverse crime: observed data
 oq = quaternion(Float64.(ozx),Float64.(ozy),Float64.(ozz));
@@ -172,7 +152,7 @@ db = bAdj(b);
 # Patching
 psize = nextpow.(2,(100,20,20));
 polap = (10,20,20);
- smin = (1,1,1);
+ smin = ntuple(x->1,Val(ndims(db)));
  smax = (nt,ns,nsline);
 
 # Threshold schedule
@@ -202,7 +182,6 @@ function proj!(state, (psize, polap, smin, smax, dt, fmin, fmax, rank))
     return out
 end
 
-
 # Step-size
 α = 0.2;
 
@@ -227,7 +206,8 @@ fp_fkt,it_fp_fkt = red_fp!(bFwd, bAdj, b, zero(db), λ,
                            ε=1e-16);
 
 # red reg param
-λ = 0.1; γ = 0.1;
+λ = 0.1;
+γ = 0.1;
 
 # Deblending by inversion    
 admm_fkt,it_admm_fkt = red_admm!(bFwd, bAdj, b, zero(db), λ, γ,
