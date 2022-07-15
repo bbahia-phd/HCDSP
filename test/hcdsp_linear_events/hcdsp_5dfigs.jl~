@@ -1,0 +1,36 @@
+pwd()
+
+dev_dir = "/home/bbahia/projects";
+cd(dev_dir)
+pwd()
+
+using Pkg
+Pkg.activate(joinpath(dev_dir,"HCDSP"))
+Pkg.status()
+
+using Revise
+using LinearAlgebra
+using FFTW
+using HCDSP
+
+using PyPlot
+using SeisMain, SeisPlot
+
+using HDF5
+
+# data dir home
+dir_path  = "/media/bbahia/DATA/seismic_data/linear5d";
+
+n = nt,n1,n2,n3,n4=100,20,20,20,20;
+
+file = joinpath(dir_path,"hcdsp_recon_3d3c_linear_events_zx.bin")
+dzx = read_write(file,"r",n=n);
+dzx = reshape(dzx,n);
+
+file = joinpath(dir_path,"hcdsp_recon_3d3c_linear_events_zy.bin")
+dzy = read_write(file,"r",n=n);
+dzy = reshape(dzy,n);
+
+file = joinpath(dir_path,"hcdsp_recon_3d3c_linear_events_zz.bin")
+dzz = read_write(file,"r",n=n);
+dzz = reshape(dzz,n);

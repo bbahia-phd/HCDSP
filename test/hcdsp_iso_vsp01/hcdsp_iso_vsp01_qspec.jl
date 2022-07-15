@@ -1,4 +1,3 @@
-
 cd(joinpath(homedir(),"projects"))
 pwd()
 
@@ -14,31 +13,42 @@ using SeisMain, SeisPlot
 using HCDSP, IterativeMethods
 
 # data dir home
-data_path = "./files/vsp3d9c/iso_vsp01/";  
+data_path = "/media/bbahia/DATA/seismic_data/iso_vsp01/crg1350";  
 
 dzx,hzx,ext_zx = SeisRead(joinpath(data_path,"iso_vsp01_zx_crg1350.seis"));
 dzy,hzy,ext_zy = SeisRead(joinpath(data_path,"iso_vsp01_zy_crg1350.seis"));
 dzz,hzz,ext_zz = SeisRead(joinpath(data_path,"iso_vsp01_zz_crg1350.seis"));
 
 dt = Float64(ext_zz.d1);
-nt = Int64(ext_zz.n1);
+n = nt,n1,n2 = 217,205,205;
+drz = 16.6;
 
-ntr = ext_zz.n2;
+dzx = permutedims(reshape(dzx,n),(1,3,2));
+dzy = permutedims(reshape(dzy,n),(1,3,2));
+dzz = permutedims(reshape(dzz,n),(1,3,2));
 
 rz_init = 1350.0; # m
 rz_end  = 1850.01; # m
-drz = 16.667 ; # m 
+dsx = dsy = drz = 16.6 ; # m 
 rz_axis = range(rz_init, rz_end, step=drz);
 nr = length(rz_axis)
 
-nsline = 205; # number of source lines
-ns = 205; # number of sources within lines
+# get geometry
+sx = SeisMain.ExtractHeader(hzx,"sx");
+sy = SeisMain.ExtractHeader(hzx,"sy");
+gl = SeisMain.ExtractHeader(hzx,"gelev");
 
-@assert ns*nsline == ntr == size(dzz,2)
+sx_n,sy_n = sx |> copy,sy |> copy;
 
-dzx = reshape(dzx,(nt,ns,nsline));
-dzy = reshape(dzy,(nt,ns,nsline));
-dzz = reshape(dzz,(nt,ns,nsline));
+# grid
+sx_min = sx |> minimum;
+sx_max = sx |> maximum;
+
+sy_min = sy |> minimum;
+sy_max = sy |> maximum;
+
+gl_min = gl |> maximum;
+gl_max = gl |> minimum;
 
 j = 50;
 
@@ -46,26 +56,28 @@ dx = Float64.(dzx[:,:,j]);
 dy = Float64.(dzy[:,:,j]);
 dz = Float64.(dzz[:,:,j]);
 
-# Add noise
-dnx = SeisAddNoise(dx, -2.0, db=true, L=3);
-dny = SeisAddNoise(dy, -2.0, db=true, L=3);
-dnz = SeisAddNoise(dz, -2.0, db=true, L=3);
-
 cmap_time = "gray"
 cmap_fk   = "jet"
 fignum    = "3c_time_domain";
-ylabel    = "Time"
+ylabel    = "t"
 yunit     = "(s)"
-xlabel    = "Trace"
-xunit     = ""
+xlabel    = "Source "*L"x"*" position"
+xunit     = "(km)"
+ts=14;
+ls=16;
 
 clf(); close("all")
-
 # Time domain 2D plot #
-figure(fignum,figsize=(10,8))
+figure(fignum,figsize=(12,10))
 
 subplot(2,3,1)
 SeisPlotTX(dx,
+        ox = sx_min,
+        dx = drz,
+        xticks=[8000,9000,10000],
+        xticklabels=["8","9","10"],
+        ticksize=ts,
+        labelsize=ls,
         oy=0.0,
         dy=dt,
         fignum=fignum,
@@ -74,11 +86,16 @@ SeisPlotTX(dx,
         yunits=yunit,
         xlabel=xlabel,
         xunits=xunit,
-        title="(a)"
-)
+        title="(a)")
 
 subplot(2,3,2)
 SeisPlotTX(dy,
+        ox = sx_min,
+        dx = drz,
+        xticks=[8000,9000,10000],
+        xticklabels=["8","9","10"],
+        ticksize=ts,
+        labelsize=ls,
         oy=0.0,
         dy=dt,
         fignum=fignum,
@@ -87,11 +104,16 @@ SeisPlotTX(dy,
         yunits=yunit,
         xlabel=xlabel,
         xunits=xunit,
-        title="(b)"
-)
+        title="(b)")
 
 subplot(2,3,3)
 SeisPlotTX(dz,
+        ox = sx_min,
+        dx = drz,
+        xticks=[8000,9000,10000],
+        xticklabels=["8","9","10"],
+        ticksize=ts,
+        labelsize=ls,
         oy=0.0,
         dy=dt,
         fignum=fignum,
@@ -100,8 +122,7 @@ SeisPlotTX(dz,
         yunits=yunit,
         xlabel=xlabel,
         xunits=xunit,
-        title="(c)"
-)
+        title="(c)")
 
 subplot(2,3,4)
 SeisPlotFK(dx,
@@ -113,7 +134,9 @@ SeisPlotFK(dx,
         yunits=yunit,
         xlabel=xlabel,
         xunits=xunit,
-        title="(d)"
+        title="(d)",
+        ticksize=ts,
+        labelsize=ls
 )
 colorbar()
 
@@ -127,7 +150,9 @@ SeisPlotFK(dy,
         yunits=yunit,
         xlabel=xlabel,
         xunits=xunit,
-        title="(e)"
+        title="(e)",
+        ticksize=ts,
+        labelsize=ls
 )
 colorbar()
 
@@ -141,7 +166,9 @@ SeisPlotFK(dz,
         yunits=yunit,
         xlabel=xlabel,
         xunits=xunit,
-        title="(f)"
+        title="(f)",
+        ticksize=ts,
+        labelsize=ls
 )
 colorbar()
 
