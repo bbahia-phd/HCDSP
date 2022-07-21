@@ -13,7 +13,7 @@ export fx_process,
         fast_ssa_lanc,
         fast_ssa_qr,
         fast_qssa_lanc,
-        fast_aqssa,lanc,
+        fast_aqssa_lanc,
         fast_qssa_qr
 
 include("fx_process.jl")

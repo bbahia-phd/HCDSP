@@ -72,32 +72,32 @@ end
 nshots = ns*nsline
 
 # sampling time
-dt = 0.012f0
+dt = 0.012f0;
 
 # record length
-rec_length = dt*nt
+rec_length = dt*nt;
 
 # shooting grid in indexes
-grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline]
+grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline];
 
 # boat shooting positions
-boat1 = copy(grid[:,1:103]) # from (1,1)
-boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2) # from (205,205)
+boat1 = copy(grid[:,1:103]); # from (1,1)
+boat2 = reverse(reverse(grid[:,104:end],dims=1),dims=2); # from (205,205)
 
 # number of shots per boat
-nb1 = prod(size(boat1))
-nb2 = prod(size(boat2))
+nb1 = prod(size(boat1));
+nb2 = prod(size(boat2));
 
 # seed
-Random.seed!(1992)
+Random.seed!(1992);
 
 # boat shooting times
-tb1 = collect(0 : rec_length : rec_length*(nb1-1))
+tb1 = collect(0 : rec_length : rec_length*(nb1-1));
 
-tmp = round.(Int, (tb1 .+ 3 .* rand(nb1)) ./ dt)
-tb2 = sort(tmp .* dt)[1:nb2]
+tmp = round.(Int, (tb1 .+ 3 .* rand(nb1)) ./ dt);
+tb2 = sort(tmp .* dt)[1:nb2];
 
-i=10
+i=10;
 [tb1[i] tb2[i]]
 
 nsx = [];
@@ -121,8 +121,8 @@ isy = Vector{Int64}(undef,nshots); isy .= nsy;
 tau = Vector{Float32}(undef,nshots); tau .= tmp;
 
 # blending factor
-t_conv = rec_length*nshots
-t_blend = maximum(tau) + rec_length -1
+t_conv = rec_length*nshots;
+t_blend = maximum(tau) + rec_length -1;
 β = t_conv/t_blend;
 
 #
@@ -134,8 +134,8 @@ PARAM = (nt = nt,
          sx = isx,
          sy = isy)
 
-bFwd(x) = BlendOp(x, PARAM, "fwd");
-bAdj(x) = BlendOp(x, PARAM, "adj");
+bFwd(x) = SeisBlendOp(x, PARAM, "fwd");
+bAdj(x) = SeisBlendOp(x, PARAM, "adj");
 
 # Threshold schedule
 @everywhere Pi, Pf, K = 99.9, 0.01, 101

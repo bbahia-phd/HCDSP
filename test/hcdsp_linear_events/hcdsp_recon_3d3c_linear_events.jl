@@ -1,22 +1,26 @@
 pwd()
 
-#dev_dir="/dev/Breno_GOM/projects/";
-
-#cd(dev_dir)
-cd(joinpath(homedir(),"projects"))
-
 using Distributed
 
-addprocs(7);
+addprocs(19);
+
+@everywhere dev_dir="/dev/Breno_GOM/projects/";
+
+cd(dev_dir)
+#cd(joinpath(homedir(),"projects"))
+
 
 @everywhere using Pkg
-@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
+#@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
+@everywhere Pkg.activate(joinpath(dev_dir,"HCDSP"))
+Pkg.status()
 
 @everywhere using Revise
 @everywhere using LinearAlgebra
 @everywhere using FFTW
-@everywhere using HCDSP
 @everywhere using Random
+
+@everywhere using HCDSP
 
 using PyPlot
 using SeisMain, SeisPlot
@@ -83,11 +87,11 @@ p,sv,sh = get_mode_data(nx1=20,nx2=20,nx3=20,nx4=20);
 dzz,dzy,dzx = mix(p,sv,sh);
 
 fmin = 0.0; fmax = 60.0; dt = 0.004;
-
+@everywhere α = 0.5;
 # Define operator to act on a frequency slice d
-@everywhere imp_ssa(d,k)   = HCDSP.imputation_op(d,HCDSP.fast_ssa_lanc,  (k); iter=10)
-@everywhere imp_qssa(d,k)  = HCDSP.imputation_op(d,HCDSP.fast_qssa_lanc, (k); iter=10)
-@everywhere imp_aqssa(d,k) = HCDSP.imputation_op(d,HCDSP.fast_aqssa_lanc,(k); iter=10)
+@everywhere imp_ssa(d,k)   = HCDSP.imputation_op(d,HCDSP.fast_ssa_lanc,  (k); iter=100, α = α)
+@everywhere imp_qssa(d,k)  = HCDSP.imputation_op(d,HCDSP.fast_qssa_lanc, (k); iter=100, α = α)
+@everywhere imp_aqssa(d,k) = HCDSP.imputation_op(d,HCDSP.fast_aqssa_lanc,(k); iter=100, α = α)
 
 # SNRs
 snrx,snry,snrz=0.8,1.0,1.2;
@@ -101,17 +105,25 @@ dnz = SeisAddNoise(dzz, snrz, db=true, L=3);
 Qt = quaternion(dnx,dny,dnz);
 
 # decimations to test
-perc = 60;
+perc = 90;
 
 # Missing traces
 Qt .= decimate_traces(Qt,perc);
 
 # ranks to test
-k = 8;
+k = 10;
+ka = 12;
 
 # Call fx_process with Q imputation
 Qo = pmap_fx_process(Qt,dt,fmin,fmax,imp_qssa,(k));
-Qa = pmap_fx_process(Qt,dt,fmin,fmax,imp_aqssa,(12));
+qx = quality(imagi.(Qo),dzx)
+qy = quality(imagj.(Qo),dzy)
+qz = quality(imagk.(Qo),dzz)
+
+Qa = pmap_fx_process(Qt,dt,fmin,fmax,imp_aqssa,(ka));
+aqx = quality(imagi.(Qa),dzx)
+aqy = quality(imagj.(Qa),dzy)
+aqz = quality(imagk.(Qa),dzz)
 
 # Component-wise processing
 Xo = pmap_fx_process(imagi.(Qt),dt,fmin,fmax,imp_ssa,(k));
@@ -123,18 +135,10 @@ rx = quality(Xo,dzx)
 ry = quality(Yo,dzy)
 rz = quality(Zo,dzz)
 
-qx = quality(imagi.(Qo),dzx)
-qy = quality(imagj.(Qo),dzy)
-qz = quality(imagk.(Qo),dzz)
-
-aqx = quality(imagi.(Qa),dzx)
-aqy = quality(imagj.(Qa),dzy)
-aqz = quality(imagk.(Qa),dzz)
-
 n=15;
 clf();close("all")
 SeisPlotTX(
-    [dzx[:,:,n] imagi.(Qt)[:,:,n] Xo[:,:,n] imagi.(Qo)[:,:,n] imagi.(Qa)[:,:,n] (dzx .- Xo)[:,:,n] (dzx .- imagi.(Qo))[:,:,n] (dzx .- imagi.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=5.0,style="overlay");
+    [dzx[:,:,n] imagi.(Qt)[:,:,n] Xo[:,:,n] imagi.(Qo)[:,:,n] imagi.(Qa)[:,:,n] (dzx .- Xo)[:,:,n] (dzx .- imagi.(Qo))[:,:,n] (dzx .- imagi.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=2.0,style="overlay");
 gcf()
 
 clf();close("all")
@@ -147,55 +151,56 @@ SeisPlotTX(
     [dzz[:,:,n] imagk.(Qt)[:,:,n] Zo[:,:,n] imagk.(Qo)[:,:,n] imagk.(Qa)[:,:,n] (dzz .- Zo)[:,:,n] (dzz .- imagk.(Qo))[:,:,n] (dzz .- imagk.(Qa))[:,:,n]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
 
-
-file_path = "./HCDSP/data/hcdsp_recon_3d3c_linear_events"
+file_path = joinpath(dev_dir,"files/linear_5d")
 
 ## Write clean data to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zz.bin")
-read_write(file,"w";n=size(dzz),input=dzz,T=Float32)
+read_write(file,"w";n=size(dzz),input=dzz,T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zy.bin")
-read_write(file,"w";n=size(dzy),input=dzy,T=Float32)
+read_write(file,"w";n=size(dzy),input=dzy,T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zx.bin")
-read_write(file,"w";n=size(dzx),input=dzx,T=Float32)
+read_write(file,"w";n=size(dzx),input=dzx,T=Float64)
 
 ## Write Input data to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qt),T=Float32)
+read_write(file,"w";n=size(dzz),input=imagk.(Qt),T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qt),T=Float32)
+read_write(file,"w";n=size(dzy),input=imagj.(Qt),T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qt),T=Float32)
+read_write(file,"w";n=size(dzx),input=imagi.(Qt),T=Float64)
 
 ## Write SSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=Zo,T=Float32)
+read_write(file,"w";n=size(dzz),input=Zo,T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=Yo,T=Float32)
+read_write(file,"w";n=size(dzy),input=Yo,T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=Xo,T=Float32)
+read_write(file,"w";n=size(dzx),input=Xo,T=Float64)
 
 ## Write QSSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qo),T=Float32)
+read_write(file,"w";n=size(dzz),input=imagk.(Qo),T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qo),T=Float32)
+read_write(file,"w";n=size(dzy),input=imagj.(Qo),T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qo),T=Float32)
+read_write(file,"w";n=size(dzx),input=imagi.(Qo),T=Float64)
 
 ## Write AQSSA output to file
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qa),T=Float32)
+read_write(file,"w";n=size(dzz),input=imagk.(Qa),T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qa),T=Float32)
+read_write(file,"w";n=size(dzy),input=imagj.(Qa),T=Float64)
 
 file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qa),T=Float32)
+read_write(file,"w";n=size(dzx),input=imagi.(Qa),T=Float64)
+
+
