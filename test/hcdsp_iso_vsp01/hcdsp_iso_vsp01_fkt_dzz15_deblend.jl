@@ -285,9 +285,7 @@ j=50;
 tmp = [ozz[:,:,j] db[:,:,j] 5 .* (ozz .- pgd_fkt)[:,:,j] 5 .* (ozz .- fp_fkt)[:,:,j]  5 .* (ozz .- admm_fkt)[:,:,j]];
 a = maximum(tmp[:])*0.2;
 
-SeisPlotTX(tmp,pclip=99,vmin=-a,vmax=a,cmap="gray"
-
-####################################
+SeisPlotTX(tmp,pclip=99,vmin=-a,vmax=a,cmap="gray")
            
 # data dir home
 data_path = "/media/bbahia/DATA/seismic_data/iso_vsp01";
