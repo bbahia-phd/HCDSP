@@ -1,0 +1,16 @@
+cd(joinpath(homedir(),"projects"))
+pwd()
+
+using Pkg
+Pkg.activate("./dev/deblending/.")
+Pkg.status()
+
+using Revise
+
+using PyPlot
+using SeisPlot, SeisMain
+using DelimitedFiles
+
+using LinearAlgebra
+using FFTW
+
