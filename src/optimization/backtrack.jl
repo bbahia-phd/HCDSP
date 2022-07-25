@@ -169,7 +169,6 @@ end
 # what is in bt_state
 function iterate(iter::BTIterable{F,T}) where {F,T}
 
-    # I don't know:
     # This variable holds the number of max iterations
     # the code should perform to find a finite value
     # for the function being minimized.

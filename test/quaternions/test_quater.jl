@@ -1,3 +1,4 @@
+# These tests were taken from the official Quaternions.jl package.
 println("Testing the Quaternion type")
 @test isa(typeof(Quaternion),DataType)
 @test Quaternion <: Number

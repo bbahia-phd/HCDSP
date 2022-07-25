@@ -1,21 +1,29 @@
-import Pkg
-Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
+pwd()
+
+using Distributed
+addprocs(5);
+
+@everywhere import Pkg
+
+# home
+@everywhere dev_dir="/home/bbahia/projects/HCDSP"
+@everywhere Pkg.activate(dev_dir)
 Pkg.status()
 
-using Revise
+@everywhere using Revise
+@everywhere using HCDSP
+
+using SeisMain, SeisPlot, SeisProcessing
 using PyPlot
-using HCDSP
 
 using MAT, MATLAB
 mat"addpath('./../../../QSEIS/src/Plotting/')"
-
-using SeisMain, SeisPlot, SeisProcessing
 
 # Doing this so SeisMain doesn't send things away
 ENV["DATAPATH"]=""
 
 # Check mat file
-file = matopen("data_patch.mat")
+file = matopen("/home/bbahia/projects/HCDSP/test/binning/data_patch.mat")
 varnames = keys(file)
 
 # Read header
@@ -151,6 +159,7 @@ end
 trc_perc = round(tot/tot_bin*100,digits=2)
 println("$tot out of $tot_bin ($trc_perc %) alive traces")
 
+#=
 # Define a patching operator
 function proj!(state, (dt,fmin,fmax,rank))
     # output allocation
@@ -160,7 +169,63 @@ function proj!(state, (dt,fmin,fmax,rank))
     it = state.it;
     
     # fk thresh
-    out .= fx_process(out,dt,fmin,fmax,fast_ssa_lanc,(rank))
+    out .= pmap_fx_process(out,dt,fmin,fmax,fast_ssa_lanc,(rank))
+    
+    # Return
+    return out
+end
+=#
+
+# Threshold schedule
+@everywhere Pi, Pf, K = 99.9, 0.01, 101
+
+# Params for patching
+psize = (100,20,20,12,9);
+polap = (20,20,20,0,0);
+smin = (1,1,1,1,1);
+smax = (nt,nx,ny,nh,naz);
+
+# Define a patched projection operator
+function proj!(state, (psize, polap, smin, smax, sched))
+    # output allocation
+    out = copy(state.x)
+
+    # get iteration:
+    it = state.it;
+
+    # apply patching on input
+    patches,pid = fwdPatchOp(out, psize, polap, smin, smax);
+    
+    # fk_thresh all patches
+    patches .= pmap(fk_thresh,
+                    patches,
+                    repeat([sched[it]], length(patches)));
+    
+    # Rewrite the solution
+    out .= adjPatchOp(patches, pid, psize, polap, smin, smax);
+
+    # Return
+    return out
+end
+
+@everywhere function fk_thresh(IN::AbstractArray,sched::AbstractFloat)
+
+    out = copy(IN)
+    
+    n = size(IN)
+    npad = 2 .* nextpow.(2,n)
+
+    # Pad
+    tmp = PadOp(out; nin=n, npad=npad, flag="fwd")
+    
+    # fft
+    tmp .= fft(tmp)
+
+    # threshold
+    threshold!(tmp,sched)
+    
+    # Truncate
+    out .= PadOp( ifft(tmp); nin=n, npad=npad, flag="adj")
     
     # Return
     return out
@@ -173,15 +238,36 @@ T = SamplingOp(dbin);
 fwd(x) = T .* x;
 adj(x) = x;
 
+# Pseudo-deblended
+db = adj(dbin);
+
+# Patching
+dpatch,_ = fwdPatchOp(db,psize,polap,smin,smax);
+
+# Threshold scheduler (it should be √.(sched) but that is too much)
+sched = HCDSP.thresh_sched(dpatch,K,Pi,Pf,"exp") ./ 5;
+
+# tolerance
+ε = 1e-16;
+
 # Step-size selection
-α = 0.1;
+α = 0.5;
 
 # Number iterations
-K = 201;
+K = 51;
 
 # f-x process
-dt  = head["dt"][1] / 1e6; fmin=0; fmax=65; rank=4;
+dt = head["dt"][1] / 1e6; fmin=0; fmax=65; rank=6;
 
+# Deblending by inversion
+tmp,tmp_it = pgdls!(fwd, adj, dbin, zero(dbin),
+                    proj!, (psize,polap,smin,smax,sched);
+                    ideal = zero(dbin), α=α,
+                    verbose=true,
+                    maxIter=K,
+                    ε=ε);
+
+#=
 # Reconstruction via PGD+SSA (I-MSSA)
 out_ssa,it_ssa = pgdls!(fwd, adj, dbin, zero(dbin),
                         proj!, (dt,fmin,fmax,rank),
@@ -190,7 +276,7 @@ out_ssa,it_ssa = pgdls!(fwd, adj, dbin, zero(dbin),
                         maxIter=K, ε=1e-16);
 
 # Reg param
-λ = 8;
+λ = 0.5;
 
 # Reconstruction via RED(FP)+SSA
 red_ssa,red_it_ssa = red_fp!(fwd, adj, dbin, zero(dbin), λ,
@@ -200,3 +286,5 @@ red_ssa,red_it_ssa = red_fp!(fwd, adj, dbin, zero(dbin), λ,
                              max_iter_o=K,
                              max_iter_i=10,
                              ε=1e-16);
+
+=#

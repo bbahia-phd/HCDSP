@@ -1,3 +1,5 @@
+# This file was written by Wenlei Gao.
+
 """
    build a multi-level circulant matrix up to five dimension
 """
