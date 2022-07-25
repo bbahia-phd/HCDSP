@@ -107,6 +107,9 @@ diz,diy,dix = mix(pi,svi,shi);
 t = (0:nt-1)*dt
 x = jmx[:,1]
 
+# see irregular data (can plot anything like this tho)
+mat"wigb($(di[:,1,:]),1,$x,$t)"
+
 # decimate
 perc1=50;
 
@@ -116,18 +119,12 @@ indx1=HCDSP.decimate_indexes(dzz,perc1) # missing indexes
 indx2=setdiff(indx0,indx1)              # observed indexes
 
 # (random) decimating regular data (data regular observed = dro)
-drz = copy(reshape(dzz,nt,:));
-drz[:,indx1] .= zero(eltype(drz));
-
-dry = copy(reshape(dzy,nt,:));
-dry[:,indx1] .= zero(eltype(dry));
-
-drx = copy(reshape(dzx,nt,:));
-drx[:,indx1] .= zero(eltype(drx));
+dro = reshape(dr,nt,:);
+dro[:,indx1] .= zero(eltype(dro));
 
 # (random) decimating irregular data (data irregular observerd = dio)
-diz = copy(reshape(diz,nt,:));
-diz[:,indx1] .= zero(eltype(diz));
+dio = reshape(di,nt,:);
+dio[:,indx1] .= zero(eltype(dio));
 
 diy = copy(reshape(diy,nt,:));
 diy[:,indx1] .= zero(eltype(diy));
@@ -136,25 +133,18 @@ dix = copy(reshape(dix,nt,:));
 dix[:,indx1] .= zero(eltype(dix));
  
 # Sampling operator (no need)
-#T = SamplingOp(dix);
-#T = reshape(T,nt,nx,ny);
+T = SamplingOp(dio);
 
 # extract the real irregular without binning
-dix2 = dix[:,indx2];
-diy2 = diy[:,indx2];
-diz2 = diz[:,indx2];
-
+dio2 = dio[:,indx2];
+ 
 # how is this binning dio2: dio2 is a bunch of (observed) traces together in matrix form (albeit 3D)
-# You are placing dio2 into regular bins in the dio array.
-# This would be the binning step, since dio was gridded accordingly.
-dix[:,indx2] .= dix2;
-diy[:,indx2] .= diy2;
-diz[:,indx2] .= diz2;
+# You are placing dio2 into regular bins in the dio array. This would be the binning step, since dio was gridded accordingly.
+dio[:,indx2] .= dio2;
 
 # The 3D versions of the regular and irregular decimated data
-dr3dx = reshape(drx,nt,nx,ny);
-dr3dy = reshape(dry,nt,nx,ny);
-dr3dz = reshape(drz,nt,nx,ny);
+dr3d = reshape(dro,nt,nx,ny);
+di3d = reshape(dio,nt,nx,ny);
 
 di3dx = reshape(dix,nt,nx,ny);
 di3dy = reshape(diy,nt,nx,ny);
