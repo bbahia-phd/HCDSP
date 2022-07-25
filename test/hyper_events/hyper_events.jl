@@ -8,9 +8,8 @@ Pkg.status()
 using SeisMain, SeisPlot, SeisProcessing
 using HCDSP, PyPlot, LinearAlgebra
 
-# set time dimension
-ot = 0.0; dt = 0.004; nt = 301; tmax = ot + (nt-1)*dt
 # same as collect(ot:dt:tmax) or collect(range(start::T,stop::T,step::T=))
+ot = 0.0; dt = 0.004; nt = 301; tmax = ot + (nt-1)*dt
 taxis = range(ot,tmax,length=nt) |> collect; 
 
 # set spatial dimension
@@ -35,5 +34,14 @@ wav_flag = "ricker";
 # central freq
 f0 = [20.0];
 
-d = SeisHypEvents(f0 = f0, wavelet =  wav_flag, amp = amp, apex = apex, vel = vel, tau =  tau, ot = ot, ox = ox, nx = nx,nt = nt);
+d = SeisHypEvents(f0 = f0,
+                wavelet =  wav_flag,
+                amp = amp,
+                apex = apex,
+                vel = vel,
+                tau =  tau,
+                ot = ot,
+                ox = ox,
+                nx = nx,
+                nt = nt );
 SeisPlotTX(d,pclip=95); gcf()
