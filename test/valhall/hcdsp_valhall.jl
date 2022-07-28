@@ -30,11 +30,11 @@ tmp = reshape(tmp,(nx*ny,3));
 tau = tmp[:,1]; sx = round.(Int,tmp[:,2]); sy = round.(Int,tmp[:,3]);
 
 # Sampling operator
-T = read_write(joinpath(data_path,"sampling_638-738.bin"),"r",n=(nt,nx,ny),T=elt);   
-T = reshape(T,(nt,nx,ny));
+T = read_write(joinpath(data_path,"sampling_638-738.bin"),"r",n=(nt,54,58),T=elt);   
+T = reshape(T,(nt,54,58));
 
 # ground-truth data
-d = read_write(joinpath(data_path,"sailline_638-738.bin"),"r",n=(nt,nx,ny),T=elt);   
+d = read_write(joinpath(data_path,"sailline_638-738.bin"),"r",n=(nt,54*58));   
 d = reshape(d,(nt,nx,ny));
 
 # blended data
@@ -60,9 +60,9 @@ polap = (50,50,50);
 d2,pid = fwdPatchOp(db,psize,polap,smin,smax);
 
 # Get threshold schedule
-Pi, Pf, K = 99.0,0.01,501
+Pi, Pf, K = 99.0,0.01,101
 
-sched = thresh_sched(d2,K,Pi,Pf,"exp") ./ 5;
+sched = thresh_sched(d2,K,Pi,Pf,"exp") ./ 10;
 
 figure("Schedule",figsize=(3,2.5))
 plot(sched); gcf()
@@ -114,7 +114,7 @@ end
 bFwd(x) = SeisBlendOp(x, PARAM, "fwd");
 bAdj(x) = SeisBlendOp(x, PARAM, "adj");
 
-α = elt(0.25);
+α = elt(0.5);
 ε = elt(1e-6);
 
 # zeros of same type
@@ -122,4 +122,7 @@ d0 = zero(db);
 
 @time x_pgd,it = pgdls!(bFwd, bAdj, b, d0,
                         proj!, (psize,polap,smin,smax,sched);
-                        ideal = d,  maxIter=K, α = α, ε = ε);
+                        ideal = d0,  maxIter=K, α = α, ε = ε);
+
+
+
