@@ -83,7 +83,7 @@ bFwd(x) = SeisBlendOp(x, PARAM, "fwd")[:,1];
 bAdj(x) = SeisBlendOp(x, PARAM, "adj")[:,:,1];
 
 # I will work with a single receiver
-b = bFwd(d);db = bAdj(b); dc = copy(d);
+b = bFwd(d); db = bAdj(b); dc = copy(d);
 
 # Threshold parameters
 @everywhere Pi, Pf, N, K = 99.9, 0.1, 201, 100;
@@ -111,7 +111,7 @@ smin = (1,1);
 smax = (nt,nx);
 
 ########################################################################
-@everywhere function update_weights(W,r,pvals; γ=2.0)
+@everywhere function update_weights(W,r,pvals)#; γ=2.0)
     # The function riht! multiplies W element by element.
     ε = 1e-4;
    
@@ -127,7 +127,7 @@ smax = (nt,nx);
             W[i] = one(r[i]);
         end
     else
-        γ2=γ^2
+        #γ2=γ^2
         # @inbounds for i in eachindex(W)
         #     W[i] = γ2 / ( γ2 +  r[i]^2.0);
         # end
