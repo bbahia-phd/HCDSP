@@ -46,7 +46,7 @@ for i in eachindex(data_path)
 end
 
 # Set new data, header and extent
-nt =2000; n2 = 0;
+nt=2000; n2=0;
 for i in 1:nf
     n2 += ext[i].n2
 end
@@ -144,10 +144,7 @@ headjl = Vector{Header}()
 dout = zeros(F32,nt,n2);
 
 # some fields are left blank (0.0)
-for n in 1:n2
-    # get the right trace
-    i = inds[n]
-   
+for n in 1:n2  
     # mid points x and y
     mx[n] = (sxb[n]+gxb[n])/2;
     my[n] = (syb[n]+gyb[n])/2;
@@ -180,6 +177,8 @@ for n in 1:n2
 
     headjl = push!(headjl,hd)
 
+    # get the right trace
+    i = inds[n]
     dout[:,n] .= d[:,i];
 end
 
@@ -200,31 +199,31 @@ d,h,e=SeisRead(joinpath(work,"seis/rotated_valhall_raw.seis"));
 dc = copy(d);
 
 # Clip to see later reflections a little... NB: This is no good
-val = quantile(abs.(vec(dc)), 0.99)
-dc = clamp.(dc, -val, val);
+#val = quantile(abs.(vec(dc)), 0.9999)
+#dc = clamp.(dc, -val, val);
 
 # Gain to see later reflections a little... NB: This is also no good.
-#dc = SeisGain(dc,dt=0.004,kind="time",coef=[1.1,0.0]); # slow & type unstable
+#dg = SeisGain(dc,dt=0.004,kind="time",coef=[1.1,0.0]); # slow & type unstable
 
 # Band-pass
 #f1,f2,f3,f4 = 0,10,45,60;
-#dc = SeisBPFilter(dc,0.004,f1,f2,f3,f4); # slow & type unstable
+#dbp = SeisBPFilter(dg,0.004,f1,f2,f3,f4); # slow & type unstable
 
 # F32 
-dc = convert.(Float32,dc);
+#dc = convert.(Float32,dc);
 
 # Plot
-SeisPlotTX(dc[:,1:1000],wbox=10,hbox=3,pclip=99,cmap="gray")
+SeisPlotTX(dc[:,1:1000],wbox=10,hbox=3,pclip=90,cmap="gray")
 
 # These are already new coords so I am rewritting stuff
-sx = SeisMain.ExtractHeader(h,"sx");
-sy = SeisMain.ExtractHeader(h,"sy");
+sx = SeisMain.ExtractHeader(h,"sx"); sy = SeisMain.ExtractHeader(h,"sy");
+gx = SeisMain.ExtractHeader(h,"gx"); gy = SeisMain.ExtractHeader(h,"gy");
 
 # minimum to set up origin of reg grid
 sx_max = maximum(sx);  sx_min = minimum(sx);
 sy_max = maximum(sy);  sy_min = minimum(sy);
 
-# 50x50 grind spacing
+# grind spacing
 dsx = Int32(50); dsy = Int32(50);
 
 # grid size is nsx × nsy
@@ -241,24 +240,78 @@ count = zeros(Float32,nsx,nsy);
 T = zeros(Float32,nsx,nsy);
 
 # Initialize regular grids
-sx_grid = [];
-sy_grid = [];
+sx_grid = []; sy_grid = [];
 
-for itr in 1:size(d,2)
+for itr in 1:size(dc,2)
+
     ix=floor(Int32,(sx[itr] - sx_min)./dsx)+1;
     iy=floor(Int32,(sy[itr] - sy_min)./dsy)+1;
-    
-    dbin[:,ix,iy] .+= d[:,itr];
-    T[ix,iy]  = 1.0;    
+  
+    dbin[:,ix,iy] .+= dc[:,itr];
     count[ix,iy] += 1.0;
-    
-    append!(sx_grid, sx_min + (ix-1)*dsx)
-    append!(sy_grid, sy_min + (iy-1)*dsy)
+    T[ix,iy]  = elt(1.0);
+
+    tsx = sx_min + (ix-1)*dsx;
+    append!(sx_grid, tsx);
+
+    tsy = sy_min + (iy-1)*dsy;
+    append!(sy_grid, tsy);
 end
 
+# (sx,sy) geometry for CRG
+scatter(sxb,syb,label="Grid obs")
+scatter(sx_grid,sy_grid,label="Reg Grid")
+legend()
+
+# full (desired) grid
+sx_full = sx_min:dsx:sx_max |> collect; sx_full = repeat(sx_full,nsy);
+sy_full = sy_min:dsy:sy_max |> collect; sy_full = repeat(sy_full,inner=nsx);
+
+# manually define the SeisHeader for the raw data
+headjl = Vector{Header}();
+
+for itr in eachindex(T)
+    
+    ix=floor(Int32,(sx_full[itr] - sx_min)./dsx)+1;
+    iy=floor(Int32,(sy_full[itr] - sy_min)./dsy)+1;
+  
+    tsx = sx_min + (ix-1)*dsx;
+    tsy = sy_min + (iy-1)*dsy;
+
+    hd = SeisMain.InitSeisHeader()
+
+    hd.tracenum = itr
+    hd.o1    = 0.f0
+    hd.n1    = Int32(nt)
+    hd.d1    = F32(0.004)
+    hd.sx    = F32(tsx)
+    hd.sy    = F32(tsy)
+    hd.gx    = F32(gxb[1])
+    hd.gy    = F32(gyb[1])
+
+    headjl = push!(headjl,hd)
+end
+
+# define a raw ext file
+raw_ext = SeisMain.Extent(nt,nsx, nsy, 1, 1,               
+                          0.f0, sx_min, sy_min, 0.f0, 0.f0,
+                          0.004f0, dsx, dsy, 0.f0, 0.f0,
+                          "time","sx","sy","","",
+                          "s","m","m","","","binned_rotated_valhall")
+
+# Write seis file after binning
+SeisWrite(joinpath(work,"seis/binned_rotated_valhall_sailline_638-738_$(dsx)x$(dsy).seis"), dbin, headjl, raw_ext)
+#SeisWrite(joinpath(work,"seis/binned_rotated_valhall_sailline_638-738_50x50.seis"), dbin, headjl, raw_ext)
+
+# Read seis file after binning
+di,hi,ei = SeisRead(joinpath(work,"seis/binned_rotated_valhall_sailline_638-738_$(dsx)x$(dsy).seis"));
+
+# binned data size
+@assert dbin == di
+
+# average repeated bins
 cindex = CartesianIndices((1:nsx,1:nsy));
-tot = 0;
-tot_bin =  prod((nsx,nsy));
+tot = 0; tot_bin = prod((nsx,nsy));
 for i in eachindex(T)
     if T[i] == 1
         tot += 1;
@@ -266,20 +319,26 @@ for i in eachindex(T)
     end
 end
 
+# percentage of alive traces
 trc_perc = round(tot/tot_bin*100,digits=2)
 println("$tot out of $tot_bin ($trc_perc %) alive traces")
 
+# percentage for fig clipping
+pc=90;
+
+# inline
 j = 50;
-SeisPlotTX(dbin[:,j,:])
+SeisPlotTX(dbin[:,j,:],pclip=pc,cmap="gray")
 
-j = 90;
-SeisPlotTX(dbin[:,:,j])
+# xline
+j = 30;
+SeisPlotTX(dbin[:,:,j],pclip=pc,cmap="gray")
 
-scatter(sxb,syb,label="Grid obs")
-scatter(sx_grid,sy_grid,label="Reg Grid")
-legend()
+# Write binaries
+read_write(joinpath(work,"bin/binned_rotated_sailline_638-738_50x50.bin"),
+           "w" ; input=dbin, T = elt );
+read_write(joinpath(work,"bin/binned_sampling_sailline_638-738_50x50.bin"),"w"
+           ; input=T, T = elt );
 
-size(dbin)
-
-read_write(joinpath(work,"bin/rotated_sailline_638-738_50x50.bin"),  "w" ; input=dbin );
-read_write(joinpath(work,"bin/sampling_sailline_638-738_50x50.bin"), "w" ; input=T );
+#read_write(joinpath(work,"bin/binned_rotated_sailline_638-738_100x100.bin"),  "w" ; input=dbin );
+#read_write(joinpath(work,"bin/sampling_sailline_638-738_100x100.bin"), "w" ; input=T );

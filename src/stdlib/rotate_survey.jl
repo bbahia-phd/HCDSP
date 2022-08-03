@@ -23,8 +23,11 @@ function rotate_survey(vx,vy)
    vyy = vy .- vyc;
    
    # Find angle to rotate
-   ang = (vy[end]-vy[1])/(vx[end]-vx[1]);
-   ang = -atan(ang)
+    ang = (vy[end]-vy[1])/(vx[end]-vx[1]);
+    ang = -atan(ang);
+#    if ang < 0
+#        ang += 360 # -atan(ang)
+#    end
 
    # Rotation matrix brute forte
    c = cos(ang);  
