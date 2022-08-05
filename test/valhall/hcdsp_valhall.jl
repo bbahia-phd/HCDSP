@@ -294,4 +294,3 @@ tmp,tmp_it = red_fp!(bFwd, bAdj, b, zero(db), λ,
 fp_rfkt = tmp;
 it_fp_rfkt_snr = tmp_it[:snr];
 it_fp_rfkt_mis = tmp_it[:misfit];
-
