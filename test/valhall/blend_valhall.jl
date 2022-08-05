@@ -269,10 +269,10 @@ polap = (50,50,50);
 dpatch,pid = fwdPatchOp(db,psize,polap,smin,smax);
 
 # Threshold parameters
-@everywhere Pi, Pf, N, K = 99.9, 0.1, 201, 10;
+@everywhere Pi, Pf, N, K = 99.9, 0.01, 101, 10;
 
 # Threshold scheduler
-sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"abma") ./ 10;
+sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
 
 figure("Schedule",figsize=(3,2.5))
 plot(sched); gcf()
@@ -282,7 +282,7 @@ p = [1.6, 1.7,1.8,1.9,2.0];
 nintervals = length(p);
 Ni = div(N,nintervals);
 
-pvals = zeros(Float64,N);
+pvals = zeros(elt,N);
 c, cc = 0,0;
 for j in 1:nintervals
     global c += 1;
@@ -291,7 +291,7 @@ for j in 1:nintervals
         pvals[cc] = p[c]
     end
 end
-pvals[cc+1]=2.0;
+pvals[cc+1]=2.f0;
 
 # initial guess for all methods
 d0 = zero(d);
@@ -304,7 +304,7 @@ d0 = zero(d);
 ε = elt(1e-16);
 
 # Deblending by inversion with non-robust denoiser
-tmp,tmp_it = pgdls!(fwd, adj, b, d0,
+tmp,tmp_it = pgdls!(fwd, adj, u1, d0,
                     proj!, (psize,polap,smin,smax,sched);
                     ideal = d, α = α,
                     verbose=true,

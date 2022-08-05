@@ -33,7 +33,6 @@ ext=Array{Any,1}(undef,nf);
 # Read each file
 for i in eachindex(data_path)
     indx = findfirst(isequal('.'), file_name[i])-1
-#    save_path[i]=joinpath(seis_files,"$(file_name[i][1:indx]).seis")
     save_path[i]="$(file_name[i][1:indx]).seis"
     
     println("Writing $(data_path[i])")
@@ -335,10 +334,8 @@ j = 30;
 SeisPlotTX(dbin[:,:,j],pclip=pc,cmap="gray")
 
 # Write binaries
-read_write(joinpath(work,"bin/binned_rotated_sailline_638-738_50x50.bin"),
-           "w" ; input=dbin, T = elt );
-read_write(joinpath(work,"bin/binned_sampling_sailline_638-738_50x50.bin"),"w"
-           ; input=T, T = elt );
+read_write(joinpath(work,"bin/binned_rotated_sailline_638-738_50x50.bin"),"w" ; input=dbin, T = elt );
+read_write(joinpath(work,"bin/binned_sampling_sailline_638-738_50x50.bin"),"w"; input=T, T = elt );
 
 #read_write(joinpath(work,"bin/binned_rotated_sailline_638-738_100x100.bin"),  "w" ; input=dbin );
 #read_write(joinpath(work,"bin/sampling_sailline_638-738_100x100.bin"), "w" ; input=T );
