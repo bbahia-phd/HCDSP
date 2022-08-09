@@ -22,7 +22,7 @@ using SeisMain, SeisPlot
 using HDF5
 
 # data dir home
-data_path = "./files/vsp3d9c/iso_vsp01/";
+data_path = joinpath(homedir(),"projects/files/vsp3d9c/iso_vsp01/");
 
 # read data
 dzz,hzz,ext_zz = SeisRead(joinpath(data_path,"iso_vsp01_zz.seis"));
@@ -66,14 +66,16 @@ end
 # Get one CRG
 ozz = ozz[:,:,:,15];
 
-#nshots
+# total shots
 nshots = ns*nsline
 
+# sampling in time
 dt = 0.012f0
 
 # record length
 rec_length = dt*nt
 
+# grid of sources
 grid = [(ix,iy) for ix in 1:ns, iy in 1:nsline];
 
 # boat shooting positions
@@ -95,9 +97,7 @@ tb2 = sort(tmp .* dt)[1:nb2]
 i=10
 [tb1[i] tb2[i]]
 
-nsx = [];
-nsy = [];
-tmp = [];
+nsx = []; nsy = []; tmp = [];
 
 for i in eachindex(boat1)
     if i <= nb2 
@@ -118,7 +118,7 @@ tau = Vector{Float32}(undef,nshots); tau .= tmp;
 # blending factor
 t_conv = rec_length*nshots
 t_blend = maximum(tau) + rec_length -1
-β = t_conv/t_blend;
+β = t_conv/t_blend
 
 #
 PARAM = (nt = nt,
@@ -129,8 +129,8 @@ PARAM = (nt = nt,
          sx = isx,
          sy = isy)
 
-bFwd(x) = BlendOp(x, PARAM, "fwd");
-bAdj(x) = BlendOp(x, PARAM, "adj");
+bFwd(x) = SeisBlendOp(x, PARAM, "fwd");
+bAdj(x) = SeisBlendOp(x, PARAM, "adj");
 
 # Threshold schedule
 @everywhere Pi, Pf, K = 99.9, 0.01, 101

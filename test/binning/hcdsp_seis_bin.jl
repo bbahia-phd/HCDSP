@@ -30,8 +30,8 @@ dout = SeisBPFilter(dout,dt / 1e6 ,1,3,50,65);
 nt,ntrace = size(dout);
 t = collect((0:nt-1) .* dt) ./ 1e6;
 
-x0 = 0.0#min(minimum(sx),minimum(gx)) + 10
-y0 = 0.0#min(minimum(sy),minimum(gy)) + 10
+x0 = min(minimum(sx),minimum(gx))
+y0 = min(minimum(sy),minimum(gy)) 
 
 sx .-= x0
 sy .-= y0
@@ -47,8 +47,8 @@ syr = sx .* s .+ sy .* c;
 gxr = gx .* c .- gy .* s;
 gyr = gx .* s .+ gy .* c;
 
-#scatter(gx,gy)
-#scatter(gxr,gyr)
+scatter(gx,gy)
+scatter(gxr,gyr)
 
 # for mid points
 mx = similar(sxr)
@@ -152,7 +152,7 @@ param2 = Dict(:style=>"mxmyhaz",
 SeisBinHeaders("data_bp_raw_1s", "data_bp_1s_bin"; param1..., param2...)
 SeisBinData(   "data_bp_raw_1s", "data_bp_1s_bin"; param1..., param2...)
 
-dbin,hb,eb = SeisRead("data_bp_1s_bin");
+dbin,hb2,eb = SeisRead("data_bp_1s_bin");
 
 ##########################################################################
 # Define a patching operator

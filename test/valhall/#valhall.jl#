@@ -32,6 +32,8 @@ d=Array{Array{Float32},1}(undef,nf);
 h=Array{Array{Header},1}(undef,nf);
 ext=Array{Any,1}(undef,nf);
 
+elt=Float32;
+
 # Read each file
 for i in eachindex(data_path)
     indx = findfirst(isequal('.'), file_name[i])-1

@@ -1,6 +1,5 @@
 function vector_get_fig_1(;ls=18,ts=16)
-    j = 91; r = 15;
-    p=99;
+    j = 91; r = 15;    p=90;
 
     @show a = max(maximum(vec(dbx)),maximum(vec(dby)),maximum(vec(dbz)))*0.1
 
@@ -123,7 +122,7 @@ function vector_get_fig_1(;ls=18,ts=16)
                 labelsize=ls,
                 oy = sy_min,
                 dy = drz,
-                ylabel="Source y  position (km)",
+                ylabel="Source y position (km)",
                 yticks=[8200,9000,10000,11000],
                 yticklabels=["8","9","10","11"],
                 cmap="gray",
@@ -134,16 +133,15 @@ function vector_get_fig_1(;ls=18,ts=16)
                 title="(f)")                
 
     tight_layout()
-    savefig(joinpath(dev_dir,"files",figname))
+#    savefig(joinpath(dev_dir,"files",figname))
 end
 
 function vector_get_fig_2(;w=15,h=10,ts=16,ls=18)
-    j = 91; r = 15;
-    p=99;
+    j = 91; r = 15;    p=99;
 
     figname = "qssa_all_time_slice_($j)_receiver_($r)"
 
-    @show a = max(maximum(vec(dbx)),maximum(vec(dby)),maximum(vec(dbz)))*0.1
+    @show a = max(maximum(vec(dbx)),maximum(vec(dby)),maximum(vec(dbz)))*0.75
 
     figure(figname,figsize= (w,h) .* 1.0)
 
@@ -343,36 +341,23 @@ end
 
 
 function vector_get_fig_3(;w=15,h=10,ts=16,ls=18)
-    j = 121; r = 15;
-    p=99;
+    j = 121; r = 15;  p=99;
 
     figname = "qssa_all_res_time_slice_($j)_receiver_($r)"
 
-    @show a = max(maximum(vec(dbx)),maximum(vec(dby)),maximum(vec(dbz)))*0.5
+    @show a = max(maximum(vec(dbx)),maximum(vec(dby)),maximum(vec(dbz)))*0.75
 
     figure(figname,figsize= (w,h) .* 1.0)
-
    
-    @show α = dot(dzx,rzx) / dot(rzx,rzx);
     p1 = dzx[j,:,:] .- rzx[j,:,:];
-    @show α = dot(dzy,rzy) / dot(rzy,rzy);
     p2 = dzy[j,:,:] .- rzy[j,:,:];
-    @show α = dot(dzz,rzz) / dot(rzz,rzz);
-    p3 = dzz[j,:,:] .- α .* rzz[j,:,:];
-
-    @show α = dot(dzx,qzx) / dot(qzx,qzx);
-    p4 = dzx[j,:,:] .- α .* qzx[j,:,:];
-    @show α = dot(dzy,qzy) / dot(qzy,qzy);
-    p5 = dzy[j,:,:] .- α .* qzy[j,:,:];
-    @show α = dot(dzz,qzz) / dot(qzz,qzz);
-    p6 = dzz[j,:,:] .- α .* qzz[j,:,:];
-
-    @show α = dot(dzx,azx) / dot(azx,azx);
-    p7 = dzx[j,:,:] .- α .* azx[j,:,:];
-    @show α = dot(dzy,azy) / dot(azy,azy);
-    p8 = dzy[j,:,:] .- α .* azy[j,:,:];
-    @show α = dot(dzz,azz) / dot(azz,azz);
-    p9 = dzz[j,:,:] .- α .* azz[j,:,:];
+    p3 = dzz[j,:,:] .- rzz[j,:,:];
+    p4 = dzx[j,:,:] .- qzx[j,:,:];
+    p5 = dzy[j,:,:] .- qzy[j,:,:];
+    p6 = dzz[j,:,:] .- qzz[j,:,:];
+    p7 = dzx[j,:,:] .- azx[j,:,:];
+    p8 = dzy[j,:,:] .- azy[j,:,:];
+    p9 = dzz[j,:,:] .- azz[j,:,:];
 
     
     subplot(331)

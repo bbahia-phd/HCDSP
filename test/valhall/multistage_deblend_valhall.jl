@@ -14,22 +14,23 @@ Pkg.status()
 @everywhere using LinearAlgebra, FFTW, DelimitedFiles
 
 # Set path
-xwork =  joinpath(homedir(),"Desktop/data/seismic_data/valhall/");
-bin_files = joinpath(work,"bin"); su_files  = joinpath(work,"su");
-seis_files= joinpath(work,"seis"); figs     = joinpath(work,"figs");
+work =  joinpath(homedir(),"Desktop/data/seismic_data/valhall/");
+bin_files = joinpath(work,"bin");
+su_files=joinpath(work,"su");
+seis_files=joinpath(work,"seis");
+figs=joinpath(work,"figs");
 
-file_name=readdir(su_files);
-file_name=file_name[ findall( x -> occursin(".su",x), file_name ) ];
+file_name=readdir(su_files)
+file_name=file_name[ findall( x -> occursin(".su",x), file_name ) ]
 
-data_path=joinpath.(su_files,file_name[ findall( x -> occursin(".su",x), file_name ) ]);
+data_path=joinpath.(su_files,file_name[ findall( x -> occursin(".su",x), file_name ) ])
 save_path=similar(data_path);
 
 # data sizes for 100x100 binning
 elt=Float32; nt=2000; n1=220; n2=140; dt=elt(0.004f0);
 
-# the crg to be blended
-d = read_write(joinpath(work,"bin/binned_rotated_sailline_638-738_50x50.bin"), "r"; n = (nt,n1,n2), T = elt);
-d = reshape(d,(nt,n1,n2));
+# Read seis file after binning
+d,h,e = SeisRead(joinpath(work,"seis/binned_rotated_valhall_sailline_638-738_50x50.seis"));
 
 # its sampling opetaror
 T = read_write(joinpath(work,"bin/binned_sampling_sailline_638-738_50x50.bin"), "r"; n = (n1,n2), T = elt);
@@ -132,17 +133,17 @@ end
     AdjOp(s) = fft(fwdPad(s))  ./ prod(npad);    
 
     # iht step-size
-    αi = Float32(0.5);
+    αi = Float32(0.1);
 
     # iht tolerance
-    εi = Float32(1e-6);    
+    εi = Float32(1e-16);    
 
     # Robust Iterative Hard Thresholding
     tmp,_ = riht!(FwdOp, AdjOp, out, zeros(ComplexF64,npad),
                   sched, update_weights, p;
-                  #α = αi,
+                  α = αi,
                   maxIter=K,
-                  verbose=false)
+                  verbose=true)
 
     # Truncate
     out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
@@ -215,7 +216,6 @@ function rproj!(state, (psize, polap, smin, smax, sched, pvals))
 
     # set internal sched for RIHT
     new_sched = _schedule(sched[1], sched[it], K, "exp")
-    #new_sched = range(sched[1], stop=sched[it], length=K)
     
     # apply patching on input
     patches,pid = fwdPatchOp(state.x, psize, polap, smin, smax);
@@ -248,6 +248,8 @@ PARAM = (nt = nt,
          sx = nsx,
          sy = nsy);
 
+# TODO: Add the sampling operator here
+# should be fwd(x) = SeisBlendOp(T .* x, PARAM, "fwd")
 fwd(x) = SeisBlendOp(x,PARAM,"fwd");
 adj(x) = SeisBlendOp(x,PARAM,"adj");
 
@@ -267,13 +269,156 @@ polap = (50,50,50);
 dpatch,pid = fwdPatchOp(db,psize,polap,smin,smax);
 
 # Threshold parameters
-@everywhere Pi, Pf, N, K = 99.9, 0.01, 101, 10;
+@everywhere Pi, Pf, N, K = 99.9, 0.1, 201, 10;
+
+# Threshold scheduler
+sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 5;
+
+figure("Schedule",figsize=(3,2.5))
+plot(sched); gcf()
+
+# initial guess for all methods
+d0 = zero(d);
+
+####################################
+###### First stage inversion #######
+
+# PGD step-size (< 1/β ≈ 0.5)
+α = elt(0.125);
+
+# tolerance
+ε = elt(1e-16);
+
+# Deblending by inversion with non-robust denoiser
+tmp,tmp_it = pgdls!(fwd, adj, b, d0,
+                    proj!, (psize,polap,smin,smax,sched);
+                    ideal = d, α = α,
+                    verbose=true,
+                    maxIter=N,
+                    ε=ε);
+
+# Store inversion results:
+# pgd_fkt represents the inverted u1 in Li et al (conoco)
+pgd_fkt = tmp;
+it_pgd_fkt_snr = tmp_it[:snr];
+it_pgd_fkt_mis = tmp_it[:misfit];
+
+#################################
+##### start processing step #####
+
+# Shift traces by TT
+# Padding
+IN = copy(pgd_fkt);
+nin  = size(IN);
+npad = (2 * nextpow(2, nin[1]), nin[2:end]...);
+INF  = complex.( PadOp(IN,nin = nin, npad = npad, flag="fwd") );
+
+# Allocation
+OUT = zero(IN);
+OUTF = zero(INF);
+
+# Fourier in time
+fft!(INF,1);
+
+# Freq range
+ω_range = freq_indexes(0, 1000, dt, npad[1]);
+
+# Spatial indexes
+indx = CartesianIndices( npad[2:end] );
+dw = 2π/npad[1]/dt;
+
+# Loop over freqs
+@inbounds for iω in ω_range
+    # shift
+    w = (iω-1)*dw;
+    shift = exp.(1im*w .* dT[indx])
+    OUTF[iω,indx] .= INF[iω,indx] .* shift
+end
+
+# Symmetries and ifft
+conj_symmetry!(OUTF)
+
+# Truncate
+OUT .= PadOp( real( ifft!(OUTF,1) ), nin = nin, npad = npad, flag="adj" );
+
+patches,pid = fwdPatchOp(OUT,psize,polap,smin,smax);
+
+# define ssa function
+@everywhere begin
+    dt = 0.004f0;
+    fmin = 0.f0;
+    fmax = 150.f0;
+    rank = 3;
+end
+
+@everywhere fssa(δ) = fx_process(δ,dt,fmin,fmax,fast_ssa_qr,(rank))
+
+# fk_thresh all patches
+patches .= pmap(fssa,patches);
+
+# Rewrite the solution
+OUTP = adjPatchOp(patches, pid, psize, polap, smin, smax);
+
+##### Undo Shift traces by TT
+IN = copy(OUTP);
+nin  = size(IN);
+npad = (2 * nextpow(2, nin[1]), nin[2:end]...);
+INF  = complex.( PadOp(IN,nin = nin, npad = npad, flag="fwd") );
+
+# Allocation
+OUT2 = zero(IN);
+OUTF2 = zero(INF);
+
+# Fourier in time
+fft!(INF,1);
+
+# Freq range
+ω_range = freq_indexes(0, 150, dt, npad[1]);
+
+# Spatial indexes
+indx = CartesianIndices( npad[2:end] );
+dw = 2π/npad[1]/dt;
+
+# Loop over freqs
+@inbounds for iω in ω_range
+    # shift
+    w = (iω-1)*dw;
+    shift = exp.(-1im*w .* dT[indx])
+    OUTF2[iω,indx] .= INF[iω,indx] .* shift
+end
+
+# Symmetries and ifft
+conj_symmetry!(OUTF2)
+
+# Truncate
+OUT2 .= PadOp( real( ifft!(OUTF2,1) ), nin = nin, npad = npad, flag="adj" );
+
+####################################
+###### Second stage inversion ######
+
+# under some processing, pgd_fkt has an estimate of the direct arrival
+# so p1 is the blended direct arrival
+p1 = fwd(OUT2); 
+
+# and u1 is the residual from the observed blended data
+u1 = b .- p1;
+
+# pseudo-deblend
+du1 = adj(u1);
+
+# for schedule
+dpatch,pid = fwdPatchOp(du1,psize,polap,smin,smax);
+
+# Threshold parameters
+@everywhere Pi, Pf, N, K = 99.9, 0.0001, 201, 10;
 
 # Threshold scheduler
 sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
 
-figure("Schedule",figsize=(3,2.5))
+figure("Schedule_2",figsize=(3,2.5))
 plot(sched); gcf()
+
+### Second stage inversion is all based on u1 now ###
 
 # p-vals for robust thresholding
 p = [1.6, 1.7,1.8,1.9,2.0];
@@ -291,33 +436,10 @@ for j in 1:nintervals
 end
 pvals[cc+1]=2.f0;
 
-# initial guess for all methods
-d0 = zero(d);
-
-####################################
-# PGD step-size (< 1/β ≈ 0.5)
-α = elt(0.25);
-
-# tolerance
-ε = elt(1e-16);
-
-# Deblending by inversion with non-robust denoiser
-tmp,tmp_it = pgdls!(fwd, adj, u1, d0,
-                    proj!, (psize,polap,smin,smax,sched);
-                    ideal = d, α = α,
-                    verbose=true,
-                    maxIter=N,
-                    ε=ε);
-
-# Store inversion results
-pgd_fkt = tmp;
-it_pgd_fkt_snr = tmp_it[:snr];
-it_pgd_fkt_mis = tmp_it[:misfit];
-
 # Deblending by inversion with robust denoiser
-tmp,tmp_it = pgdls!(fwd, adj, b, d0,
+tmp,tmp_it = pgdls!(fwd, adj, u1, d0,
                     rproj!, (psize,polap,smin,smax,sched,pvals);
-                    ideal = d, α = α,
+                    ideal = (d .- OUT2), α = α,
                     verbose=true,
                     maxIter=N,
                     ε=ε);
@@ -326,22 +448,3 @@ tmp,tmp_it = pgdls!(fwd, adj, b, d0,
 pgd_rfkt = tmp;
 it_pgd_rfkt_snr = tmp_it[:snr];
 it_pgd_rfkt_mis = tmp_it[:misfit];
-
-####################################
-# RED reg param
-λ = Float64(0.1);
-
-# Deblending by inversion with robust denoiser
-tmp,tmp_it = red_fp!(fwd, adj, b, zero(db), λ,
-                     rproj!, (psize,polap,smin,smax,sched,pvals);
-                     ideal = tmpz,
-                     verbose=true,
-                     max_iter_o=N,
-                     max_iter_i=10,
-                     ε=Float32(1e-16));
-
-# Store inversion results
-fp_rfkt = tmp;
-it_fp_rfkt_snr = tmp_it[:snr];
-it_fp_rfkt_mis = tmp_it[:misfit];
-
