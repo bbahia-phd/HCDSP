@@ -137,8 +137,8 @@ end
 # robust thresholding
 @everywhere function fk_thresh(IN::AbstractArray,sched::AbstractArray, p)
 
-    out = copy(IN)
     n = size(IN)
+    out = copy(IN)
     npad = 2 .* nextpow.(2,n)
 
     # Pad & Crop
@@ -158,7 +158,7 @@ end
     # Robust Iterative Hard Thresholding
     tmp,_ = riht!(FwdOp, AdjOp, out, zeros(ComplexF32,npad),
                   sched, update_weights, p;
-#                  α = αi,
+                  α = αi,
                   maxIter=K,
                   verbose=false)
 
@@ -184,7 +184,7 @@ function rproj!(state, (psize, polap, smin, smax, sched, pvals))
     p = pvals[it];
 
     # set internal sched for RIHT
-    new_sched = _schedule(sched[1], sched[it], K, "exp")
+    new_sched = _schedule(sched[it], sched[it], K, "exp")
     
     # apply patching on input
     patches,pid = fwdPatchOp(state.x, psize, polap, smin, smax);
@@ -237,10 +237,10 @@ polap = (10,10,10);
 dpatch,pid = fwdPatchOp(db,psize,polap,smin,smax);
 
 # Threshold parameters
-@everywhere Pi, Pf, N, K = 99.9, 0.01, 151, 10;
+@everywhere Pi, Pf, N, K = 99.9, 0.01, 151, 5;
 
 # Threshold scheduler
-sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
+sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"abma") ./ 10;
 
 #figure("Schedule",figsize=(3,2.5))
 #plot(sched); gcf()

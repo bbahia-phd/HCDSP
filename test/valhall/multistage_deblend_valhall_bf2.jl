@@ -12,25 +12,21 @@ Pkg.status()
 @everywhere using HCDSP
 @everywhere using SeisMain, SeisPlot, PyPlot
 @everywhere using LinearAlgebra, FFTW, DelimitedFiles
+@everywhere using Statistics
 
 # Set path
 work =  joinpath(homedir(),"Desktop/data/seismic_data/valhall/");
-bin_files = joinpath(work,"bin");
-su_files=joinpath(work,"su");
 seis_files=joinpath(work,"seis");
-figs=joinpath(work,"figs");
-
-file_name=readdir(su_files)
-file_name=file_name[ findall( x -> occursin(".su",x), file_name ) ]
-
-data_path=joinpath.(su_files,file_name[ findall( x -> occursin(".su",x), file_name ) ])
-save_path=similar(data_path);
 
 # data sizes for 100x100 binning
 elt=Float32; nt=2000; n1=110; n2=70; dt=elt(0.004f0);
 
 # read seis file after binning
 d,h,e = SeisRead(joinpath(work,"seis/binned_rotated_valhall_sailline_638-738_100x100.seis"));
+
+# Clip to see later reflections a little... NB: This is no good
+val = quantile(abs.(vec(d)), 1)
+#d = elt.(clamp.(d, -val, val));
 
 # sampling opetaror
 S = SamplingOp(d);
@@ -42,26 +38,29 @@ gx = SeisMain.ExtractHeader(h,"gx"); gy = SeisMain.ExtractHeader(h,"gy");
 # minimum to set up origin of reg grid
 sx_max = maximum(sx);  sx_min = minimum(sx);
 sy_max = maximum(sy);  sy_min = minimum(sy);
+dsx = dsy = 100;
 
 # Estimate travel-times for shift
-TT = zeros(elt,n1,n2); TTup = zero(TT); TTdw = zero(TT);
+TT = zeros(elt,n1,n2);
 δt = 0.4; # for taper in seconds
 
-vw = 1500; hw = 70; hw2 = hw*hw;
+vw = 1480; hw = 70; hw2 = hw*hw;
 
-for itr in eachindex(TT)
+for itr in eachindex(sx)
+    
+    tsx = sx[itr];  tsy = sy[itr];
 
-    tsx = sx[itr]; tsy = sy[itr];
     tgx = gx[itr]; tgy = gy[itr];
 
-    dsq = sqrt((tsx-tgx)^2+(tsy-tgy)^2+hw2)
-    TT[itr] = dsq/vw;
-    TTup[itr] = TT[itr]-δt
-    TTdw[itr] = TT[itr]+δt
+    isx = floor(Int,(tsx - sx_min)/dsx)+1;
+    isy = floor(Int,(tsy - sy_min)/dsy)+1;
+
+    dsq = sqrt((tsx-tgx)^2+hw2)
+    TT[isx,isy] = dsq/vw;
 end
 
 dT = zero(TT);
-dT .= TT .- minimum(TT);
+dT .= TT #.- minimum(TT);
 
 # conventional record length
 rec_length = dt*(nt-1);
@@ -106,156 +105,6 @@ t_blend = maximum(tau) + rec_length;
 # blending factor (approx 2)
 beta = t_conv / t_blend;
 
-########################################################################
-@everywhere function update_weights(W,r,pvals,ii; γ=2.0)
-    # The function riht! multiplies W element by element.
-    ε = 1e-4;
-   
-    p = pvals
-
-    if p == 1.0
-        @inbounds for i in eachindex(W)
-            W[i] = 1 / ( abs(r[i]) +  ε);
-        end
-
-    elseif p == 2.0
-        @inbounds for i in eachindex(W)
-            W[i] = one(r[i]);
-        end
-    else
-        @inbounds for i in eachindex(W)
-            W[i] = 1 / (abs(r[i])^(2.0-p) +  ε)
-        end
-        #γ2=γ^2
-        # @inbounds for i in eachindex(W)
-        #     W[i] = γ2 / ( γ2 +  r[i]^2.0);
-        # end        
-    end
-end
-
-########################################################################
-# robust thresholding
-@everywhere function fk_thresh(IN::AbstractArray,sched::AbstractArray, p)
-
-    out = copy(IN)
-    n = size(IN)
-    npad = 2 .* nextpow.(2,n)
-
-    # Pad & Crop
-    fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
-    adjPad(x) = PadOp(x; nin=n, npad=npad, flag="adj");
-    
-    # Overall fwd and adj operators with transform
-    FwdOp(s) = adjPad(real(ifft(s)));
-    AdjOp(s) = fft(fwdPad(s))  ./ prod(npad);    
-
-    # iht step-size
-    αi = Float32(0.1);
-
-    # iht tolerance
-    εi = Float32(1e-16);    
-
-    # Robust Iterative Hard Thresholding
-    tmp,_ = riht!(FwdOp, AdjOp, out, zeros(ComplexF64,npad),
-                  sched, update_weights, p;
-                  α = αi,
-                  maxIter=K,
-                  verbose=true)
-
-    # Truncate
-    out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
-    
-    # Return
-    return out
-end
-
-########################################################################
-# non robust thresholding
-@everywhere function fk_thresh(IN::AbstractArray,sched::Real)
-
-    out = similar(IN)
-    n = size(IN)
-    npad = 2 .* nextpow.(2,n)
-
-    # Pad
-    tmp = complex.(PadOp(IN; nin=n, npad=npad, flag="fwd"))
-    
-    # fft
-    fft!(tmp)
-
-    # threshold
-    threshold!(tmp,sched)
-    
-    # Truncate
-    out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
-    
-    # Return
-    return out
-end
-
-########################################################################
-# define a patching operator
-function proj!(state, (psize, polap, smin, smax, sched))
-
-    # output allocation
-    out = similar(state.x);
-    
-    # get iteration:
-    it = state.it;
-
-    # apply patching on input
-    patches,pid = fwdPatchOp(state.x, psize, polap, smin, smax);
-    
-    # define the fkt function with given thresholding                                                                                  
-    fkt(δ) = fk_thresh(δ,sched[it])
-
-    patches .= pmap(fkt,patches);
-        
-    # rewrite the solution
-    out .= adjPatchOp(patches, pid, psize, polap, smin, smax);
-
-    # projection
-    return out
-end
-
-########################################################################
-# define a patching operator
-function rproj!(state, (psize, polap, smin, smax, sched, pvals))
-
-    # output allocation
-    out = similar(state.x);
-    
-    # get iteration:
-    it = state.it;
-
-    # p value
-    p = pvals[it];
-
-    # set internal sched for RIHT
-    new_sched = _schedule(sched[1], sched[it], K, "exp")
-    
-    # apply patching on input
-    patches,pid = fwdPatchOp(state.x, psize, polap, smin, smax);
-    
-    # fk_thresh all patches
-    if p != 2.0
-        patches .= pmap(fk_thresh,
-                   patches,
-                   repeat([new_sched], length(patches)),
-                   repeat([p],length(patches)));
-    else
-        # define the fkt function with given thresholding                                  
-        fkt(δ) = fk_thresh(δ,sched[it])
-        patches .= pmap(fkt,patches);
-    end
-        
-    # rewrite the solution
-    out .= adjPatchOp(patches, pid, psize, polap, smin, smax);
-        
-    # projection
-    return out
-end
-
 # define blending forward and adjoint operators
 PARAM = (nt = nt,
          nx = n1,
@@ -284,14 +133,11 @@ polap = (10,10,10);
 # for schedule
 dpatch,pid = fwdPatchOp(db,psize,polap,smin,smax);
 
-# Threshold parameters
-@everywhere Pi, Pf, N, K = 99.9, 0.01, 201, 10;
+# threshold parameters
+@everywhere Pi, Pf, N = 99.9, 0.01, 101;
 
-# Threshold scheduler
-sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"abma");
-
-#figure("Schedule",figsize=(3,2.5))
-#plot(sched); gcf()
+# threshold scheduler
+sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"abma") ./ 10;
 
 # initial guess for all methods
 d0 = zero(d);
@@ -318,47 +164,80 @@ pgd_fkt = tmp;
 it_pgd_fkt_snr = tmp_it[:snr];
 it_pgd_fkt_mis = tmp_it[:misfit];
 
+#################################
+##### start processing step #####
+
+# Shift for best SSA
+OUTP = copy(pgd_fkt);
+OUT = ndshift(OUTP,dT,dt);
+
+patches,pid = fwdPatchOp(OUT,psize,polap,smin,smax);
+
+# define SSA function
+@everywhere begin
+    dt = 0.004f0;
+    fmin = 0.0f0;
+    fmax = 60.0f0;
+    rank = 3;
+    fssa(δ) = fx_process(δ,dt,fmin,fmax,fast_ssa_lanc,(rank))
+end
+
+# SSA patches
+patches .= pmap(fssa,patches);
+
+# Rewrite the solution
+OUT = adjPatchOp(patches, pid, psize, polap, smin, smax);
+
+# Band-passing
+OUT .= elt.(reshape(SeisBPFilter(reshape(OUT,nt,:),dt,0,10,50,60),(nt,n1,n2)));
+
+# Undo shift after SSA
+OUT2 = ndshift(OUT,-dT, dt);
+
 #######################
 ###### Debiasing ######
-n = size(pgd_fkt);
+n = size(OUT);
 
 # (Full-data) Fourier coefficients
-α̂ = fft(pgd_fkt);
+α̂ = fft(S .* OUT);
 
 # get mask 
 M = zeros(eltype(α̂),size(α̂));
-M[findall(!iszero,α̂)] .= one(eltype(M));
+mα = median(abs.(α̂)) ./ 2;
+gtmean(x) = x > mα
+M[findall(gtmean,abs.(α̂))] .= one(eltype(M));
 
 # Overall fwd and adj operators with transform
 FwdOp(s) = S .* real(ifft(M .* s));
 AdjOp(s) = M .* fft(S .* s)  ./ prod(n);
 
-#fwdDb(x) = fwd(FwdOp(x));
-#adjDb(x) = AdjOp(adj(x));
+fwdDb(x) = fwd(FwdOp(x));
+adjDb(x) = AdjOp(adj(x));
 
 # initial model
-x = copy(α̂);
+x = M .* α̂;
 
 # model blended data from new coefficients
-bb = FwdOp(x);
+bb = fwdDb(x); #FwdOp(x);
 
 # residual
-r = db .- bb; misfit = real(dot(r,r));
+r = b .- bb; misfit = real(dot(r,r));
 
 # gradient
-g = AdjOp(r); gprod = real(dot(g,g));
+g = adjDb(r); #AdjOp(r);
+gprod = real(dot(g,g));
 
 # conj grad
 p = copy(g);
 
 # max iter for debias step
-max_iter = 3;
+max_iter = 100;
 
 # flag
 verbose = true;
 
 for i in 1:max_iter
-    q = FwdOp(p);
+    q = fwdDb(p); #FwdOp(p);
 
     γ = gprod / (real(dot(q,q))+1e-10);
 
@@ -368,7 +247,7 @@ for i in 1:max_iter
     misfit = real(dot(r,r));
 
     # grad
-    g = AdjOp(r);
+    g = adjDb(r); #AdjOp(r);
 
     gprod_new = real(dot(g,g));
     β = gprod_new / (gprod + 1e-10);
@@ -381,32 +260,6 @@ for i in 1:max_iter
 end
 
 OUTP = FwdOp(x);
-
-#################################
-##### start processing step #####
-
-# Shift for best SSA
-OUT = ndshift(pgd_fkt,dT,dt);
-
-patches,pid = fwdPatchOp(OUT,psize,polap,smin,smax);
-
-# define SSA function
-@everywhere begin
-    dt = 0.004f0;
-    fmin = 0.0f0;
-    fmax = 50.0f0;
-    rank = 3;
-    fssa(δ) = fx_process(δ,dt,fmin,fmax,fast_ssa_qr,(rank))
-end
-
-# SSA patches
-patches .= pmap(fssa,patches);
-
-# Rewrite the solution
-OUTP = adjPatchOp(patches, pid, psize, polap, smin, smax);
-
-# Undo shift after SSA
-OUT2 = ndshift(OUTP,-dT, dt);
 
 ####################################
 ###### Second stage inversion ######
@@ -425,28 +278,12 @@ du1 = adj(u1);
 dpatch,pid = fwdPatchOp(du1,psize,polap,smin,smax);
 
 # Threshold parameters
-@everywhere Pi, Pf, N, K = 99.9, 0.0001, 201, 10;
+@everywhere Pi, Pf, N, K = 99.9, 0.01, 201, 10;
 
 # Threshold scheduler
 sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
 
 ### Second stage inversion is all based on u1 now ###
-
-# p-vals for robust thresholding
-p = [1.6,1.7,1.8,1.9,2.0];
-nintervals = length(p);
-Ni = div(N,nintervals);
-
-pvals = zeros(elt,N);
-c, cc = 0,0;
-for j in 1:nintervals
-    global c += 1;
-    for i in 1:Ni
-        global cc += 1;
-        pvals[cc] = p[c]
-    end
-end
-pvals[cc+1]=2.f0;
 
 # Deblending by inversion with robust denoiser
 tmp,tmp_it = pgdls!(fwd, adj, u1, d0,
