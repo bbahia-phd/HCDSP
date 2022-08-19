@@ -12,7 +12,11 @@ Pkg.status()
 @everywhere using HCDSP
 @everywhere using SeisMain, SeisPlot, PyPlot
 @everywhere using LinearAlgebra, FFTW, DelimitedFiles
-@everywhere using Statistics
+@everywhere using Statistics, Random
+@everywhere include("./ndshift.jl")
+
+# Set seed
+@everywhere Random.seed!(1992)
 
 # Set path
 work =  joinpath(homedir(),"Desktop/data/seismic_data/valhall/");
@@ -25,42 +29,15 @@ elt=Float32; nt=2000; n1=110; n2=70; dt=elt(0.004f0);
 d,h,e = SeisRead(joinpath(work,"seis/binned_rotated_valhall_sailline_638-738_100x100.seis"));
 
 # Clip to see later reflections a little... NB: This is no good
-val = quantile(abs.(vec(d)), 1)
-#d = elt.(clamp.(d, -val, val));
+val = quantile(abs.(vec(d)), 0.9999f0)
+d .= elt.(clamp.(d, -val, val));
+
+# read time shifts here
+dT = read_write(joinpath(work,"bin/travel_times.bin"),"r",n=(n1,n2),T=elt);
+dT = reshape(dT,(n1,n2));
 
 # sampling opetaror
 S = SamplingOp(d);
-
-# These are already new coords so I am rewritting stuff
-sx = SeisMain.ExtractHeader(h,"sx"); sy = SeisMain.ExtractHeader(h,"sy");
-gx = SeisMain.ExtractHeader(h,"gx"); gy = SeisMain.ExtractHeader(h,"gy");
-
-# minimum to set up origin of reg grid
-sx_max = maximum(sx);  sx_min = minimum(sx);
-sy_max = maximum(sy);  sy_min = minimum(sy);
-dsx = dsy = 100;
-
-# Estimate travel-times for shift
-TT = zeros(elt,n1,n2);
-δt = 0.4; # for taper in seconds
-
-vw = 1480; hw = 70; hw2 = hw*hw;
-
-for itr in eachindex(sx)
-    
-    tsx = sx[itr];  tsy = sy[itr];
-
-    tgx = gx[itr]; tgy = gy[itr];
-
-    isx = floor(Int,(tsx - sx_min)/dsx)+1;
-    isy = floor(Int,(tsy - sy_min)/dsy)+1;
-
-    dsq = sqrt((tsx-tgx)^2+hw2)
-    TT[isx,isy] = dsq/vw;
-end
-
-dT = zero(TT);
-dT .= TT #.- minimum(TT);
 
 # conventional record length
 rec_length = dt*(nt-1);
@@ -126,21 +103,37 @@ db = adj(b);
 
 # Patching
 psize = nextpow.(2,(500,10,10));
-polap = (10,10,10);
+polap = (50,50,50);
  smin = (1,1,1);
  smax = (nt,n1,n2);
 
 # for schedule
 dpatch,pid = fwdPatchOp(db,psize,polap,smin,smax);
 
-# threshold parameters
-@everywhere Pi, Pf, N = 99.9, 0.01, 101;
+# threshold parameterds
+@everywhere Pi, Pf, N, K = 99.9, 0.01, 201, 10;
 
 # threshold scheduler
-sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"abma") ./ 10;
+sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
 
 # initial guess for all methods
 d0 = zero(d);
+
+# p-vals for robust thresholding
+p = [1.6,1.7,1.8,1.9,2.0];
+nintervals = length(p);
+Ni = div(N,nintervals);
+
+pvals = zeros(elt,N);
+c, cc = 0,0;
+for j in 1:nintervals
+    global c += 1;
+    for i in 1:Ni
+        global cc += 1;
+        pvals[cc] = p[c]
+    end
+end
+pvals[cc+1]=2.f0;
 
 ####################################
 ###### First stage inversion #######
@@ -149,124 +142,61 @@ d0 = zero(d);
 α = elt(0.125);
 
 # tolerance
-ε = elt(1e-16);
+ε = elt(1e-8);
 
 # Deblending by inversion with non-robust denoiser
 tmp,tmp_it = pgdls!(fwd, adj, b, d0,
-                    proj!, (psize,polap,smin,smax,sched);
+                    rproj!, (psize,polap,smin,smax,sched,pvals);
                     ideal = d, α = α,
                     verbose=true,
-                    maxIter=N,
-                    ε=ε);
+                    maxIter=N, ε = ε);
 
 # Store inversion results: pgd_fkt represents the inverted u1 in Li et al (conoco)
 pgd_fkt = tmp;
 it_pgd_fkt_snr = tmp_it[:snr];
 it_pgd_fkt_mis = tmp_it[:misfit];
 
-#################################
-##### start processing step #####
+##############################################
+##### Start conventional processing step #####
 
-# Shift for best SSA
-OUTP = copy(pgd_fkt);
-OUT = ndshift(OUTP,dT,dt);
+##############################################
+### Mute above and below the first arrival ###
+OUT = copy(pgd_fkt);
+OUT .= mute_above(OUT, dT, dt; δt = 0.5);
+OUT .= mute_below(OUT, dT, dt; δt = 0.5);
 
-patches,pid = fwdPatchOp(OUT,psize,polap,smin,smax);
+###########################################################
+#### Improve first arrival estimate with SSA filtering ####
 
 # define SSA function
 @everywhere begin
     dt = 0.004f0;
     fmin = 0.0f0;
-    fmax = 60.0f0;
-    rank = 3;
-    fssa(δ) = fx_process(δ,dt,fmin,fmax,fast_ssa_lanc,(rank))
+    fmax = 100.0f0;
+    rank = 15;
+    fssa(δ) = fx_process(δ,dt,fmin,fmax,fast_ssa_qr,(rank))
+    pmap_fssa(δ) = pmap_fx_process(δ,dt,fmin,fmax,fast_ssa_qr,(rank))
 end
 
-# SSA patches
-patches .= pmap(fssa,patches);
+# Band-limiting to [0:80] Hz ?
+#OUT = elt.(reshape(SeisBPFilter(reshape(OUTP,nt,:),dt,fmin,10,80,fmax),(nt,n1,n2)));
 
-# Rewrite the solution
-OUT = adjPatchOp(patches, pid, psize, polap, smin, smax);
+# SSA in patches (no shift)
+patches,pid = fwdPatchOp(OUT,psize,polap,smin,smax);
+patches    .= pmap(fssa,patches);
+OUT        .= adjPatchOp(patches, pid, psize, polap, smin, smax);
 
-# Band-passing
-OUT .= elt.(reshape(SeisBPFilter(reshape(OUT,nt,:),dt,0,10,50,60),(nt,n1,n2)));
-
-# Undo shift after SSA
-OUT2 = ndshift(OUT,-dT, dt);
-
-#######################
-###### Debiasing ######
-n = size(OUT);
-
-# (Full-data) Fourier coefficients
-α̂ = fft(S .* OUT);
-
-# get mask 
-M = zeros(eltype(α̂),size(α̂));
-mα = median(abs.(α̂)) ./ 2;
-gtmean(x) = x > mα
-M[findall(gtmean,abs.(α̂))] .= one(eltype(M));
-
-# Overall fwd and adj operators with transform
-FwdOp(s) = S .* real(ifft(M .* s));
-AdjOp(s) = M .* fft(S .* s)  ./ prod(n);
-
-fwdDb(x) = fwd(FwdOp(x));
-adjDb(x) = AdjOp(adj(x));
-
-# initial model
-x = M .* α̂;
-
-# model blended data from new coefficients
-bb = fwdDb(x); #FwdOp(x);
-
-# residual
-r = b .- bb; misfit = real(dot(r,r));
-
-# gradient
-g = adjDb(r); #AdjOp(r);
-gprod = real(dot(g,g));
-
-# conj grad
-p = copy(g);
-
-# max iter for debias step
-max_iter = 100;
-
-# flag
-verbose = true;
-
-for i in 1:max_iter
-    q = fwdDb(p); #FwdOp(p);
-
-    γ = gprod / (real(dot(q,q))+1e-10);
-
-    # model and residual update
-    x .+= γ .* p
-    r .-= γ .* q
-    misfit = real(dot(r,r));
-
-    # grad
-    g = adjDb(r); #AdjOp(r);
-
-    gprod_new = real(dot(g,g));
-    β = gprod_new / (gprod + 1e-10);
-    gprod = copy(gprod_new)
-
-    # conj grad
-    p .= g .+ β .* p
-
-    verbose ? println("Iteration $i misfit = $(misfit) and gradient = $(gprod)") : nothing
-end
-
-OUTP = FwdOp(x);
+# Shift for SSA (no patches)
+OUT .= ndshift(OUTP,dT,dt);
+OUT .= pmap_fssa(OUT);
+OUT .= ndshift(OUT,-dT, dt);
 
 ####################################
 ###### Second stage inversion ######
 
 # under some processing, pgd_fkt has an estimate of the direct arrival
 # so p1 is the blended direct arrival
-p1 = fwd(S .* OUTP); 
+p1 = fwd(S .* OUT); 
 
 # and u1 is the residual from the observed blended data
 u1 = b .- p1;
@@ -278,7 +208,7 @@ du1 = adj(u1);
 dpatch,pid = fwdPatchOp(du1,psize,polap,smin,smax);
 
 # Threshold parameters
-@everywhere Pi, Pf, N, K = 99.9, 0.01, 201, 10;
+@everywhere Pi, Pf, N= 99.9, 0.01, 101;
 
 # Threshold scheduler
 sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
@@ -288,10 +218,10 @@ sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
 # Deblending by inversion with robust denoiser
 tmp,tmp_it = pgdls!(fwd, adj, u1, d0,
                     proj!, (psize,polap,smin,smax,sched);
-                    ideal = (d .- OUT2), α = α,
+                    ideal = (d .- OUT), α = α,
                     verbose=true,
                     maxIter=N,
-                    ε=ε);
+                    ε=elt(1e-16));
 
 # Store inversion results
 pgd_rfkt = tmp;

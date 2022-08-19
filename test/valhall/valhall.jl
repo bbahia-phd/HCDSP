@@ -15,11 +15,11 @@ using SeisProcessing
 using HCDSP
 
 # Set path
-work =  joinpath(homedir(),"Desktop/data/seismic_data/valhall/");
-bin_files = joinpath(work,"bin");
-su_files=joinpath(work,"su");
-seis_files=joinpath(work,"seis");
-figs=joinpath(work,"figs");
+work       = joinpath(homedir(),"Desktop/data/seismic_data/valhall/");
+bin_files  = joinpath(work,"bin");
+su_files   = joinpath(work,"su");
+seis_files = joinpath(work,"seis");
+figs       = joinpath(work,"figs");
 
 file_name=readdir(su_files)
 file_name=file_name[ findall( x -> occursin(".su",x), file_name ) ]
@@ -31,6 +31,8 @@ nf=length(data_path);
 d=Array{Array{Float32},1}(undef,nf);
 h=Array{Array{Header},1}(undef,nf);
 ext=Array{Any,1}(undef,nf);
+
+elt = Float32;
 
 # Read each file
 for i in eachindex(data_path)
@@ -198,23 +200,6 @@ d,h,e = SeisRead(joinpath(work,"seis/rotated_valhall_raw.seis"));
 # clipping the common receiver gather
 dc = copy(d);
 
-# Clip to see later reflections a little... NB: This is no good
-#val = quantile(abs.(vec(dc)), 0.9999)
-#dc = clamp.(dc, -val, val);
-
-# Gain to see later reflections a little... NB: This is also no good.
-#dg = SeisGain(dc,dt=0.004,kind="time",coef=[1.1,0.0]); # slow & type unstable
-
-# Band-pass
-#f1,f2,f3,f4 = 0,10,45,60;
-#dbp = SeisBPFilter(dg,0.004,f1,f2,f3,f4); # slow & type unstable
-
-# F32 
-#dc = convert.(Float32,dc);
-
-# Plot
-SeisPlotTX(dc[:,1000:2000],wbox=10,hbox=3,pclip=50,cmap="gray")
-
 # These are already new coords so I am rewritting stuff
 sx = SeisMain.ExtractHeader(h,"sx"); sy = SeisMain.ExtractHeader(h,"sy");
 gx = SeisMain.ExtractHeader(h,"gx"); gy = SeisMain.ExtractHeader(h,"gy");
@@ -224,7 +209,7 @@ sx_max = maximum(sx);  sx_min = minimum(sx);
 sy_max = maximum(sy);  sy_min = minimum(sy);
 
 # grind spacing
-dsx = Int32(50); dsy = Int32(50);
+dsx = Int32(100); dsy = Int32(100);
 
 # grid size is nsx × nsy
 nsx = floor(Int32,(sx_max-sx_min)/dsx)+1
@@ -239,13 +224,26 @@ count = zeros(Float32,nsx,nsy);
 # sampling operator per bin
 T = zeros(Float32,nsx,nsy);
 
+# Estimate travel-times for shift
+TT = zeros(elt,nsx,nsy);
+lind = LinearIndices(TT);
+cind = CartesianIndices(TT);
+δt = 0.4; # for taper in seconds
+
+vw = 1480; hw = 70; hw2 = hw*hw;
+
 # Initialize regular grids
 sx_grid = []; sy_grid = [];
 
 for itr in 1:size(dc,2)
+    tsx = sx[itr];  tsy = sy[itr];
+    tgx = gx[itr];  tgy = gy[itr];
 
-    ix=floor(Int32,(sx[itr] - sx_min)./dsx)+1;
-    iy=floor(Int32,(sy[itr] - sy_min)./dsy)+1;
+    ix=floor(Int32,(tsx - sx_min)./dsx)+1;
+    iy=floor(Int32,(tsy - sy_min)./dsy)+1;
+
+    dsq = sqrt((tsx-tgx)^2+(tsy-tgy)^2+hw2)
+    TT[ix,iy] = dsq/vw; 
   
     dbin[:,ix,iy] .+= dc[:,itr];
     count[ix,iy] += 1.0;
@@ -257,6 +255,11 @@ for itr in 1:size(dc,2)
     tsy = sy_min + (iy-1)*dsy;
     append!(sy_grid, tsy);
 end
+
+# Get travel times after shifting min to zero
+dT = zero(TT);
+dT .= TT .- minimum(TT);
+read_write(joinpath(bin_files,"travel_times.bin"),"r";n=(nsx,nsy),input=dT,T=elt)
 
 # average repeated bins
 cindex = CartesianIndices((1:nsx,1:nsy));

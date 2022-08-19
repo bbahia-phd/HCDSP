@@ -73,7 +73,7 @@ end
 
     out = copy(IN)
     n = size(IN)
-    npad = 2 .* nextpow.(2,n)
+    npad = 1 .* nextpow.(2,n)
 
     # Pad & Crop
     fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
@@ -84,17 +84,17 @@ end
     AdjOp(s) = fft(fwdPad(s))  ./ prod(npad);    
 
     # iht step-size
-    αi = Float32(0.1);
+    αi = Float32(0.5);
 
     # iht tolerance
-    εi = Float32(1e-16);    
+    εi = Float32(1e-4);    
 
     # Robust Iterative Hard Thresholding
     tmp,_ = riht!(FwdOp, AdjOp, out, zeros(ComplexF64,npad),
                   sched, update_weights, p;
                   α = αi,
                   maxIter=K,
-                  verbose=true)
+                  verbose=false)
 
     # Truncate
     out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
@@ -166,7 +166,7 @@ function rproj!(state, (psize, polap, smin, smax, sched, pvals))
     p = pvals[it];
 
     # set internal sched for RIHT
-    new_sched = _schedule(sched[1], sched[it], K, "exp")
+    new_sched = _schedule(sched[it], sched[it], K, "exp")
     
     # apply patching on input
     patches,pid = fwdPatchOp(state.x, psize, polap, smin, smax);
@@ -191,6 +191,76 @@ function rproj!(state, (psize, polap, smin, smax, sched, pvals))
 end
 
 
+
+########################################################################
+# mute above
+"""
+
+# Arguments
+-`d` the data
+-`dT` the time for each trace
+-`dt` time sampling 
+-`δt` time taper 
+"""
+function mute_above(d,dT,dt; δt=0.4)
+
+    elt = eltype(d);
+    n = size(d); nt = n[1];
+    out = copy(d);
+    cind = CartesianIndices(dT)
+    for it in 1:nt
+        t = (it-1)*dt;
+        for i in cind
+            tmute = dT[i];
+            if (t <= tmute)
+                if (t > tmute - δt )
+                    out[it,i] *= elt(1 - (tmute-t)/δt)
+                else
+                    out[it,i] *= zero(elt)
+                end
+            end
+        end
+    end
+
+    return out
+end
+
+                
+
+########################################################################
+# mute below
+"""
+
+# Arguments
+-`d` the data
+-`dT` the time for each trace
+-`dt` time sampling 
+-`δt` time taper 
+"""
+function mute_below(d,dT,dt; δt=0.4)
+
+    elt = eltype(d);
+    n = size(d); nt = n[1];
+    out = copy(d);
+    cind = CartesianIndices(dT)
+    for it in 1:nt
+        t = (it-1)*dt;
+        for i in cind
+            tmute = dT[i];
+            if (t >= tmute)
+                if (t < tmute + δt )
+                    out[it,i] *= elt(1 - (tmute-t)/δt)
+                else
+                    out[it,i] *= zero(elt)
+                end
+            end
+        end
+    end
+
+    return out
+end
+
+
 ########################################################################
 # define a debias function
 """
@@ -199,9 +269,84 @@ end
 
 """
 function debias(fwd,adj,d,α)
-    
+###################
+#### Debiasing ####
+n = size(OUT); npad = 1 .* nextpow.(2,n)
 
+# Overall fwd and adj operators with transform
 
+# Pad & Crop
+fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
+adjPad(x) = PadOp(x; nin=n, npad=npad, flag="adj");
+
+fwdFT(s) = S .* adjPad( real(ifft(M .* s)) );
+adjFT(s) = M .* fft(fwdPad(S .* s))  ./ prod(npad);
+
+fwdDb(x) = fwd(fwdFT(x));
+adjDb(x) = adjFT(adj(x));
+
+# (Full-data) Fourier coefficients
+α̂ = fft(fwdPad(S .* OUT));
+
+# Set up mask for FT coefficients
+M = zeros(eltype(α̂),size(α̂));
+mα = median(abs.(α̂)) .* 0.5;
+gtmean(x) = x > mα
+M[findall(gtmean,abs.(α̂))] .= one(eltype(M)); # NB: high-freq artifacts
+
+# thresholded initial model
+x = M .* α̂;
+
+# model blended data from new coefficients
+bb = fwdDb(x);
+
+# residual
+r = b .- bb; misfit = real(dot(r,r));
+
+# gradient
+g = adjDb(r); 
+gprod = real(dot(g,g));
+
+# conj grad
+p = copy(g);
+
+# max iter for debias step
+max_iter = 10;
+
+# mist (flag,tol...)
+verbose = true; εi = 1e-6;
+
+for i in 1:max_iter
+    q = fwdDb(p);
+
+    γ = gprod / (real(dot(q,q))+1e-10);
+
+    # model and residual update
+    x .+= γ .* p
+    r .-= γ .* q
+    misfit = real(dot(r,r));
+
+    # grad
+    g = adjDb(r);
+
+    gprod_new = real(dot(g,g));
+    β = gprod_new / (gprod + 1e-10);
+    @show stp = abs((gprod_new - gprod)/gprod)
+    if stp < εi
+        # last conj grad
+        p .= g .+ β .* p
+        break
+    else
+        gprod = copy(gprod_new)
+    end
+
+    # conj grad
+    p .= g .+ β .* p
+
+    verbose ? println("Iteration $i misfit = $(misfit) and gradient = $(gprod)") : nothing
+end
+
+OUTP = fwdFT(M .* x);
 
 end
 

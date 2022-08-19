@@ -39,30 +39,6 @@ S = SamplingOp(d);
 sx = SeisMain.ExtractHeader(h,"sx"); sy = SeisMain.ExtractHeader(h,"sy");
 gx = SeisMain.ExtractHeader(h,"gx"); gy = SeisMain.ExtractHeader(h,"gy");
 
-# minimum to set up origin of reg grid
-sx_max = maximum(sx);  sx_min = minimum(sx);
-sy_max = maximum(sy);  sy_min = minimum(sy);
-
-# Estimate travel-times for shift
-TT = zeros(elt,n1,n2); TTup = zero(TT); TTdw = zero(TT);
-δt = 0.4; # for taper in seconds
-
-vw = 1500; hw = 70; hw2 = hw*hw;
-
-for itr in eachindex(TT)
-
-    tsx = sx[itr]; tsy = sy[itr];
-    tgx = gx[itr]; tgy = gy[itr];
-
-    dsq = sqrt((tsx-tgx)^2+(tsy-tgy)^2+hw2)
-    TT[itr] = dsq/vw;
-    TTup[itr] = TT[itr]-δt
-    TTdw[itr] = TT[itr]+δt
-end
-
-dT = zero(TT);
-dT .= TT .- minimum(TT);
-
 # conventional record length
 rec_length = dt*(nt-1);
 
@@ -105,108 +81,6 @@ t_blend = maximum(tau) + rec_length;
 
 # blending factor (approx 2)
 beta = t_conv / t_blend;
-
-########################################################################
-@everywhere function update_weights(W,r,pvals,ii; γ=2.0)
-    # The function riht! multiplies W element by element.
-    ε = 1e-4;
-   
-    p = pvals
-
-    if p == 1.0
-        @inbounds for i in eachindex(W)
-            W[i] = 1 / ( abs(r[i]) +  ε);
-        end
-
-    elseif p == 2.0
-        @inbounds for i in eachindex(W)
-            W[i] = one(r[i]);
-        end
-    else
-        @inbounds for i in eachindex(W)
-            W[i] = 1 / (abs(r[i])^(2.0-p) +  ε)
-        end
-        #γ2=γ^2
-        # @inbounds for i in eachindex(W)
-        #     W[i] = γ2 / ( γ2 +  r[i]^2.0);
-        # end        
-    end
-end
-
-########################################################################
-# robust thresholding
-@everywhere function fk_thresh(IN::AbstractArray,sched::AbstractArray, p)
-
-    n = size(IN)
-    out = copy(IN)
-    npad = 2 .* nextpow.(2,n)
-
-    # Pad & Crop
-    fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
-    adjPad(x) = PadOp(x; nin=n, npad=npad, flag="adj");
-    
-    # Overall fwd and adj operators with transform
-    FwdOp(s) = adjPad(real(ifft(s)));
-    AdjOp(s) = fft(fwdPad(s))  ./ prod(npad);    
-
-    # iht step-size
-    αi = Float32(0.1);
-
-    # iht tolerance
-    εi = Float32(1e-16);    
-
-    # Robust Iterative Hard Thresholding
-    tmp,_ = riht!(FwdOp, AdjOp, out, zeros(ComplexF32,npad),
-                  sched, update_weights, p;
-                  α = αi,
-                  maxIter=K,
-                  verbose=false)
-
-    # Truncate
-    out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
-    
-    # Return
-    return out
-end
-
-
-########################################################################
-# define a patching operator
-function rproj!(state, (psize, polap, smin, smax, sched, pvals))
-
-    # output allocation
-    out = similar(state.x);
-    
-    # get iteration:
-    it = state.it;
-
-    # p value
-    p = pvals[it];
-
-    # set internal sched for RIHT
-    new_sched = _schedule(sched[it], sched[it], K, "exp")
-    
-    # apply patching on input
-    patches,pid = fwdPatchOp(state.x, psize, polap, smin, smax);
-    
-    # fk_thresh all patches
-    if p != 2.0
-        patches .= pmap(fk_thresh,
-                   patches,
-                   repeat([new_sched], length(patches)),
-                   repeat([p],length(patches)));
-    else
-        # define the fkt function with given thresholding                                  
-        fkt(δ) = fk_thresh(δ,sched[it])
-        patches .= pmap(fkt,patches);
-    end
-        
-    # rewrite the solution
-    out .= adjPatchOp(patches, pid, psize, polap, smin, smax);
-        
-    # projection
-    return out
-end
 
 # define blending forward and adjoint operators
 PARAM = (nt = nt,
