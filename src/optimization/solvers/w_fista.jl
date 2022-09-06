@@ -59,6 +59,9 @@ end
 # iterate overload for zero iteration
 function iterate(iter::WFISTAIterable{Fwd, Adj, Tt, Tw, P, Td, Tx, T}) where {Fwd, Adj, Tt, Tw, P, Td, Tx, T }
 
+    # count
+    count = 1;
+    
     # Initial guess
     x = copy(iter.x0)
     xt = copy(x)
@@ -68,14 +71,13 @@ function iterate(iter::WFISTAIterable{Fwd, Adj, Tt, Tw, P, Td, Tx, T}) where {Fw
 
     # Weights
     W = zero(r);
-    iter.update_weights(W,r,iter.args)
+    iter.update_weights(W,r,iter.args, count)
 
     # Gradient
     g = iter.Lt(W.*r)
 
     # Useful quantities
     t = 1.0;
-    count = 0;
     gprod = real( dot(g,g) )
     prev_misfit = real( dot(iter.d,iter.d) );
     curr_misfit = real( dot(r,r) );
@@ -116,7 +118,7 @@ function iterate(iter::WFISTAIterable{Fwd,Adj,Tt,Tw,P,Td,Tx,T}, state::WFISTASta
     state.curr_misfit = real( dot(state.r, state.r) )
 
     # update weights
-    iter.update_weights(state.W,state.r,iter.args)
+    iter.update_weights(state.W,state.r,iter.args, state.count)
     
     # gradient
     state.g = iter.Lt(state.W .* state.r);

@@ -39,11 +39,10 @@ function ndshift(IN::AbstractArray{T}, δT::Matrix{T}, dt::Real) where {T}
 
 end
 
-
 ########################################################################
-@everywhere function update_weights(W,r,pvals,ii; γ=2.0)
+@everywhere function update_weights(W,r,pvals,ii; γ=0.75)
     # The function riht! multiplies W element by element.
-    ε = 1e-4;
+    ε = 1e-6;
    
     p = pvals
 
@@ -51,7 +50,6 @@ end
         @inbounds for i in eachindex(W)
             W[i] = 1 / ( abs(r[i]) +  ε);
         end
-
     elseif p == 2.0
         @inbounds for i in eachindex(W)
             W[i] = one(r[i]);
@@ -61,43 +59,50 @@ end
             W[i] = 1 / (abs(r[i])^(2.0-p) +  ε)
         end
         #γ2=γ^2
-        # @inbounds for i in eachindex(W)
-        #     W[i] = γ2 / ( γ2 +  r[i]^2.0);
-        # end        
+        #@inbounds for i in eachindex(W)
+        #    W[i] = γ2 / ( γ2 +  r[i]^2.0);
+        #end        
     end
 end
 
 ########################################################################
 # robust thresholding
-@everywhere function fk_thresh(IN::AbstractArray,sched::AbstractArray, p)
+# FOr faster code use FFT plans in your operators
+#Ff = plan_fft(randn(Float32,npad); flags=FFTW.ESTIMATE, timelimit=Inf);
+#Fi = plan_ifft!(randn(ComplexF32,npad); flags=FFTW.ESTIMATE, timelimit=Inf);
+@everywhere function fk_thresh(IN::AbstractArray, sched::AbstractArray, p; nb=1)
 
-    out = copy(IN)
-    n = size(IN)
-    npad = 1 .* nextpow.(2,n)
+    n    = size(IN)
+    npad = 2 .* nextpow.(2,n)
+    #avg_spec = zeros(ComplexF32,npad);
 
     # Pad & Crop
     fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
     adjPad(x) = PadOp(x; nin=n, npad=npad, flag="adj");
     
-    # Overall fwd and adj operators with transform
-    FwdOp(s) = adjPad(real(ifft(s)));
-    AdjOp(s) = fft(fwdPad(s))  ./ prod(npad);    
+    # Overall fwd and adj operators with transforms
+    FwdOp(s) = adjPad(real(ifft!(s)));
+    AdjOp(s) = fft(fwdPad(s))  ./ prod(npad);
+
+    # initial model
+    x0 = zeros(ComplexF32,npad) #AdjOp(IN);# 
 
     # iht step-size
     αi = Float32(0.5);
 
-    # iht tolerance
-    εi = Float32(1e-4);    
+    # tolerance
+    εi = Float32(1e-13);
 
     # Robust Iterative Hard Thresholding
-    tmp,_ = riht!(FwdOp, AdjOp, out, zeros(ComplexF64,npad),
+    tmp,_ = riht!(FwdOp, AdjOp, IN, x0,
                   sched, update_weights, p;
                   α = αi,
+                  ε = εi,
                   maxIter=K,
                   verbose=false)
-
+    
     # Truncate
-    out .= PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
+    out = PadOp(real( ifft!(tmp) ); nin=n, npad=npad, flag="adj")
     
     # Return
     return out
@@ -106,7 +111,7 @@ end
 ########################################################################
 # non robust thresholding
 @everywhere function fk_thresh(IN::AbstractArray,sched::Real)
-
+   
     out = similar(IN)
     n = size(IN)
     npad = 2 .* nextpow.(2,n)
@@ -140,7 +145,7 @@ function proj!(state, (psize, polap, smin, smax, sched))
     # apply patching on input
     patches,pid = fwdPatchOp(state.x, psize, polap, smin, smax);
     
-    # define the fkt function with given thresholding                                                                                  
+    # define the fkt function with given thresholding
     fkt(δ) = fk_thresh(δ,sched[it])
 
     patches .= pmap(fkt,patches);
@@ -178,7 +183,7 @@ function rproj!(state, (psize, polap, smin, smax, sched, pvals))
                    repeat([new_sched], length(patches)),
                    repeat([p],length(patches)));
     else
-        # define the fkt function with given thresholding                                  
+        # define the fkt function with given thresholding
         fkt(δ) = fk_thresh(δ,sched[it])
         patches .= pmap(fkt,patches);
     end
@@ -190,8 +195,6 @@ function rproj!(state, (psize, polap, smin, smax, sched, pvals))
     return out
 end
 
-
-
 ########################################################################
 # mute above
 """
@@ -201,6 +204,7 @@ end
 -`dT` the time for each trace
 -`dt` time sampling 
 -`δt` time taper 
+
 """
 function mute_above(d,dT,dt; δt=0.4)
 
@@ -236,6 +240,7 @@ end
 -`dT` the time for each trace
 -`dt` time sampling 
 -`δt` time taper 
+
 """
 function mute_below(d,dT,dt; δt=0.4)
 
@@ -350,11 +355,61 @@ OUTP = fwdFT(M .* x);
 
 end
 
+# Gain
+function get_gain(d,dt;a=2.0,b=0.0)
+
+    elt = eltype(d);
+    n = size(d); nt = n[1];
+    cind = CartesianIndices(n[2:end])
+
+    t = collect(0:1:nt-1)*dt
+    tg = zero(d);    itg = zero(d);
 
 
+    for it in 1:nt
+        g = (t[it]^a)*exp(b*t[it]);
+        tg[it,cind]  .= g;
+        itg[it,cind] .= 1/(g.+1e-6);
+    end
+
+#=
+    for k in cind
+        amax = maximum([abs(d[i,k]) for i in 1:nt])
+        #amax = [sqrt(sum(d[i,k]^2)/nt) for i in 1:nt];
+	if amax ==0
+	    amax = 0.0001
+	end
+	
+	tg[:,k]  .= tg[:,k]  ./ amax;
+        itg[:,k] .= itg[:,k] .* amax;
+    end
+=#
+   
+    return tg,itg
+end
+
+function median_trace(d;hl=5)
+
+    wl = 2hl+1;
+    elt = eltype(d);
+    n = size(d); nt = n[1];
+    cind = CartesianIndices(n[2:end])
+
+    out = copy(d);
 
 
-
+    @inbounds begin
+        for it in hl:nt-hl
+            twind = it-hl:it+hl;
+            for k in cind
+                out[it,k] = median(d[twind,k])
+            end
+        end
+    end
+    
+    return out
+    
+end
 
 
 #=
@@ -429,3 +484,4 @@ conj_symmetry!(OUTF2)
 # Truncate
 OUT2 .= PadOp( real( ifft!(OUTF2,1) ), nin = nin, npad = npad, flag="adj" );
 =#
+

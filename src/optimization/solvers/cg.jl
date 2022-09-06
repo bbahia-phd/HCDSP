@@ -101,7 +101,8 @@ end
 @inline converged_mod(state::CGState) = state.it > 0 ? norm(state.xo .- state.x,2)^2/norm(state.xo,2)^2 < state.ε : false;
 
 function cg!(L, d, x ;
-             tol = sqrt( eps( real( eltype(d) ) ) ),
+             tol = eltype(d)(1e-8),
+             #tol = sqrt( eps( real( eltype(d) ) ) ),
              max_iter::Int = max(1000, length(x) ),
              verbose::Bool = true,
              kwargs ... )

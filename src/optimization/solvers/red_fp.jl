@@ -55,7 +55,7 @@ function redfp_iterable(L, Lt, d, x, μ, proj, args...;
     LOp(δ) = Lt(L(δ)) .+ μ .* δ;
 
     # Define cost function
-    cost_f(δ,δ_d) = 0.5 * real(norm(d .- L(δ),2))^2 + 0.5 * μ * real(dot(δ,(δ - δ_d)))
+    cost_f(δ,δ_d) = 0.5 * real(norm(d .- L(δ),2))^2 #+ 0.5 * μ * real(dot(δ,(δ - δ_d)))
     return REDFPIterable(LOp, rhs, cost_f, proj, args..., x, ideal, int_it, ε)
 end
 
@@ -99,7 +99,8 @@ function iterate(iter::REDFPIterable{Op, Rhs, F, Tp ,P, Tx, T}, state::REDFPStat
                     tmp,
                     zero(tmp),
                     max_iter = iter.int_it,
-                    verbose=false)
+                    verbose=false,
+                    tol=T(1e-16))
 
     # snr (this can be an iterable)
     if iter.xi != nothing;
@@ -118,7 +119,6 @@ end
 #@inline converged(state::REDFPState) = abs((state.δ_new_misfit-state.δ_old)/state.δ_old) <= state.ε
 @inline converged_res(state::REDFPState) = state.δ_new < state.ε^2 * state.δ0
 @inline converged_mod(state::REDFPState) = state.it > 0 ? norm(state.xo .- state.x,2)^2/norm(state.xo,2)^2 < state.ε : false;
-
 
 function red_fp!(L, Lt, d, x, μ, proj, args...;
                  ideal = nothing,
