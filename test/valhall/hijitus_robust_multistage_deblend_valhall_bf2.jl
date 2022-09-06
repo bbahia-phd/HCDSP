@@ -168,7 +168,7 @@ tmp,tmp_it = red_fp!(fwd, adj, b, d0, λ,
                      ideal = d,
                      verbose=true,
                      max_iter_o=N,
-                     max_iter_i=5,
+                     max_iter_i=50,
                      ε=ε);
 
 # Store inversion results
