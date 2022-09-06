@@ -1,5 +1,13 @@
-/home/brenobahia/projects/HCDSP/test/valhall/multistage_deblend_valhall.jl
-/home/brenobahia/projects/HCDSP/test/valhall/#multistage_deblend_valhall.jl#
+/home/brenobahia/projects/HCDSP/test/valhall/robust_multistage_deblend_valhall_bf2.jl
+/home/brenobahia/projects/HCDSP/test/valhall/#robust_multistage_deblend_valhall_bf2.jl#
+/home/brenobahia/projects/HCDSP/test/valhall/multistage_deblend_valhall_bf2.jl
+/home/brenobahia/projects/HCDSP/test/valhall/#multistage_deblend_valhall_bf2.jl#
+/home/brenobahia/projects/HCDSP/test/valhall/ndshift.jl
+/home/brenobahia/projects/HCDSP/test/valhall/#ndshift.jl#
+/home/brenobahia/projects/SeisProcessing.jl/src/Processing/SeisGain.jl
+/home/brenobahia/projects/SeisProcessing.jl/src/Processing/#SeisGain.jl#
+/home/brenobahia/projects/HCDSP/src/optimization/solvers/cgls.jl
+/home/brenobahia/projects/HCDSP/src/optimization/solvers/#cgls.jl#
 /home/brenobahia/projects/HCDSP/test/valhall/valhall.jl
 /home/brenobahia/projects/HCDSP/test/valhall/#valhall.jl#
 /home/brenobahia/projects/HCDSP/test/valhall/blend_valhall.jl

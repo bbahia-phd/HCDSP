@@ -77,8 +77,8 @@ end
     #avg_spec = zeros(ComplexF32,npad);
 
     # Pad & Crop
-    fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
-    adjPad(x) = PadOp(x; nin=n, npad=npad, flag="adj");
+    #fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
+    #adjPad(x) = PadOp(x; nin=n, npad=npad, flag="adj");
     
     # Overall fwd and adj operators with transforms
     FwdOp(s) = adjPad(real(ifft!(s)));

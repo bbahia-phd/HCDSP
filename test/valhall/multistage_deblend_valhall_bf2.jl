@@ -1,7 +1,7 @@
-pwd()
+apwd()
 
 using Distributed
-addprocs(5)
+addprocs(7)
 
 @everywhere dev_dir=joinpath(homedir(),"projects")
 @everywhere using Pkg
@@ -16,25 +16,27 @@ Pkg.status()
 @everywhere include("./ndshift.jl")
 
 # Set seed
-@everywhere Random.seed!(1992)
+rng = MersenneTwister(1992);
 
 # Set path
 work =  joinpath(homedir(),"Desktop/data/seismic_data/valhall/");
-seis_files=joinpath(work,"seis");
 
 # data sizes for 100x100 binning
 elt=Float32; nt=2000; n1=110; n2=70; dt=elt(0.004f0);
 
-# read seis file after binning
-d,h,e = SeisRead(joinpath(work,"seis/binned_rotated_valhall_sailline_638-738_100x100.seis"));
-
-# Clip to see later reflections a little... NB: This is no good
-val = quantile(abs.(vec(d)), 0.9999f0)
-d .= elt.(clamp.(d, -val, val));
-
 # read time shifts here
 dT = read_write(joinpath(work,"bin/travel_times.bin"),"r",n=(n1,n2),T=elt);
 dT = reshape(dT,(n1,n2));
+dT = dT[1:50,1:50];
+
+# read seis file after binning
+d,h,e = SeisRead(joinpath(work,"seis/binned_rotated_valhall_sailline_638-738_100x100.seis"));
+d = d[1:1000,1:50,1:50];
+nt,n1,n2 = size(d);
+
+# Clip to see later reflections a little... NB: This is no good
+val = quantile(abs.(vec(d)), 0.999f0)
+d .= elt.(clamp.(d, -val, val));
 
 # sampling opetaror
 S = SamplingOp(d);
@@ -111,29 +113,13 @@ polap = (50,50,50);
 dpatch,pid = fwdPatchOp(db,psize,polap,smin,smax);
 
 # threshold parameterds
-@everywhere Pi, Pf, N, K = 99.9, 0.01, 201, 10;
+@everywhere Pi, Pf, N = 99.9, 0.1, 101;
 
 # threshold scheduler
 sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
 
-# initial guess for all methods
+# initial guess
 d0 = zero(d);
-
-# p-vals for robust thresholding
-p = [1.6,1.7,1.8,1.9,2.0];
-nintervals = length(p);
-Ni = div(N,nintervals);
-
-pvals = zeros(elt,N);
-c, cc = 0,0;
-for j in 1:nintervals
-    global c += 1;
-    for i in 1:Ni
-        global cc += 1;
-        pvals[cc] = p[c]
-    end
-end
-pvals[cc+1]=2.f0;
 
 ####################################
 ###### First stage inversion #######
@@ -142,11 +128,11 @@ pvals[cc+1]=2.f0;
 α = elt(0.125);
 
 # tolerance
-ε = elt(1e-8);
+ε = elt(1e-16);
 
 # Deblending by inversion with non-robust denoiser
 tmp,tmp_it = pgdls!(fwd, adj, b, d0,
-                    rproj!, (psize,polap,smin,smax,sched,pvals);
+                    proj!, (psize,polap,smin,smax,sched);
                     ideal = d, α = α,
                     verbose=true,
                     maxIter=N, ε = ε);
@@ -161,13 +147,13 @@ it_pgd_fkt_mis = tmp_it[:misfit];
 
 ##############################################
 ### Mute above and below the first arrival ###
-OUT = copy(pgd_fkt);
+OUT = copy(tmp);
 OUT .= mute_above(OUT, dT, dt; δt = 0.5);
 OUT .= mute_below(OUT, dT, dt; δt = 0.5);
 
 ###########################################################
 #### Improve first arrival estimate with SSA filtering ####
-
+o
 # define SSA function
 @everywhere begin
     dt = 0.004f0;
@@ -182,14 +168,14 @@ end
 #OUT = elt.(reshape(SeisBPFilter(reshape(OUTP,nt,:),dt,fmin,10,80,fmax),(nt,n1,n2)));
 
 # SSA in patches (no shift)
-patches,pid = fwdPatchOp(OUT,psize,polap,smin,smax);
-patches    .= pmap(fssa,patches);
-OUT        .= adjPatchOp(patches, pid, psize, polap, smin, smax);
+#patches,pid = fwdPatchOp(OUT,psize,polap,smin,smax);
+#patches    .= pmap(fssa,patches);
+#OUT        .= adjPatchOp(patches, pid, psize, polap, smin, smax);
 
 # Shift for SSA (no patches)
-OUT .= ndshift(OUTP,dT,dt);
-OUT .= pmap_fssa(OUT);
-OUT .= ndshift(OUT,-dT, dt);
+#OUT .= ndshift(OUTP,dT,dt);
+#OUT .= pmap_fssa(OUT);
+#OUT .= ndshift(OUT,-dT, dt);
 
 ####################################
 ###### Second stage inversion ######
@@ -208,20 +194,34 @@ du1 = adj(u1);
 dpatch,pid = fwdPatchOp(du1,psize,polap,smin,smax);
 
 # Threshold parameters
-@everywhere Pi, Pf, N= 99.9, 0.01, 101;
+@everywhere Pi, Pf, N, K = 99.9, 0.01, 101, 5;
 
 # Threshold scheduler
 sched = HCDSP.thresh_sched(dpatch,N,Pi,Pf,"exp") ./ 10;
 
-### Second stage inversion is all based on u1 now ###
+# p-vals for robust thresholding
+p = [1.6,1.7,1.8,1.9,2.0];
+nintervals = length(p);
+Ni = div(N,nintervals);
 
-# Deblending by inversion with robust denoiser
+pvals = zeros(elt,N);
+c, cc = 0,0;
+for j in 1:nintervals
+    global c += 1;
+    for i in 1:Ni
+        global cc += 1;
+        pvals[cc] = p[c]
+    end
+end
+pvals[cc+1]=2.f0;
+
+### Second stage inversion is all based on u1 now ###
+### Deblending by inversion with robust denoiser  ###
 tmp,tmp_it = pgdls!(fwd, adj, u1, d0,
-                    proj!, (psize,polap,smin,smax,sched);
+                    rproj!, (psize,polap,smin,smax,sched,pvals);
                     ideal = (d .- OUT), α = α,
                     verbose=true,
-                    maxIter=N,
-                    ε=elt(1e-16));
+                    maxIter=N, ε=ε);
 
 # Store inversion results
 pgd_rfkt = tmp;
