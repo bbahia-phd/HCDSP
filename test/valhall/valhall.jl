@@ -259,7 +259,7 @@ end
 # Get travel times after shifting min to zero
 dT = zero(TT);
 dT .= TT .- minimum(TT);
-read_write(joinpath(bin_files,"travel_times.bin"),"r";n=(nsx,nsy),input=dT,T=elt)
+read_write(joinpath(bin_files,"travel_times.bin"),"w";n=(nsx,nsy),input=dT,T=elt)
 
 # average repeated bins
 cindex = CartesianIndices((1:nsx,1:nsy));

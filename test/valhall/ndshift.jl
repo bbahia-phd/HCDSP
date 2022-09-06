@@ -39,7 +39,6 @@ function ndshift(IN::AbstractArray{T}, δT::Matrix{T}, dt::Real) where {T}
 
 end
 
-
 ########################################################################
 @everywhere function update_weights(W,r,pvals,ii; γ=2.0)
     # The function riht! multiplies W element by element.
@@ -76,12 +75,12 @@ end
     npad = 1 .* nextpow.(2,n)
 
     # Pad & Crop
-    fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
-    adjPad(x) = PadOp(x; nin=n, npad=npad, flag="adj");
+    #fwdPad(x) = PadOp(x; nin=n, npad=npad, flag="fwd");
+    #adjPad(x) = PadOp(x; nin=n, npad=npad, flag="adj");
     
     # Overall fwd and adj operators with transform
-    FwdOp(s) = adjPad(real(ifft(s)));
-    AdjOp(s) = fft(fwdPad(s))  ./ prod(npad);    
+    FwdOp(s) = real(ifft(s));
+    AdjOp(s) = fft(s)  ./ prod(npad);    
 
     # iht step-size
     αi = Float32(0.5);
@@ -90,7 +89,7 @@ end
     εi = Float32(1e-4);    
 
     # Robust Iterative Hard Thresholding
-    tmp,_ = riht!(FwdOp, AdjOp, out, zeros(ComplexF64,npad),
+    tmp,_ = riht!(FwdOp, AdjOp, out, zeros(ComplexF32,n),
                   sched, update_weights, p;
                   α = αi,
                   maxIter=K,
