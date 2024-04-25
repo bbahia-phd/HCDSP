@@ -2,7 +2,7 @@ pwd()
 
 using Distributed
 
-addprocs(19);
+addprocs(4);
 
 @everywhere dev_dir="/dev/Breno_GOM/projects/";
 
@@ -111,7 +111,7 @@ perc = 90;
 Qt .= decimate_traces(Qt,perc);
 
 # ranks to test
-k = 10;
+k  = 10;
 ka = 12;
 
 # Call fx_process with Q imputation
@@ -138,18 +138,21 @@ rz = quality(Zo,dzz)
 n=15;
 clf();close("all")
 SeisPlotTX(
-    [dzx[:,:,n] imagi.(Qt)[:,:,n] Xo[:,:,n] imagi.(Qo)[:,:,n] imagi.(Qa)[:,:,n] (dzx .- Xo)[:,:,n] (dzx .- imagi.(Qo))[:,:,n] (dzx .- imagi.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=2.0,style="overlay");
+    [dzx[:,:,n] imagi.(Qt)[:,:,n] Xo[:,:,n] imagi.(Qo)[:,:,n] imagi.(Qa)[:,:,n] (dzx .- Xo)[:,:,n] (dzx .- imagi.(Qo))[:,:,n] (dzx .- imagi.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
+PyPlot.savefig(joinpath(homedir(),"julia/compare_x.jpg"));
 
 clf();close("all")
 SeisPlotTX(
-    [dzy[:,:,n] imagj.(Qt)[:,:,n] Yo[:,:,n] imagj.(Qo)[:,:,n] imagj.(Qa)[:,:,n] (dzy .- Yo)[:,:,n] (dzy .- imagj.(Qo))[:,:,n] (dzy .- imagj.(Qa))[:,:,n]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
+    [dzy[:,:,n] imagj.(Qt)[:,:,n] Yo[:,:,n] imagj.(Qo)[:,:,n] imagj.(Qa)[:,:,n] (dzy .- Yo)[:,:,n] (dzy .- imagj.(Qo))[:,:,n] (dzy .- imagj.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
+PyPlot.savefig(joinpath(homedir(),"julia/compare_y.jpg"));
 
 clf();close("all")
 SeisPlotTX(
-    [dzz[:,:,n] imagk.(Qt)[:,:,n] Zo[:,:,n] imagk.(Qo)[:,:,n] imagk.(Qa)[:,:,n] (dzz .- Zo)[:,:,n] (dzz .- imagk.(Qo))[:,:,n] (dzz .- imagk.(Qa))[:,:,n]], wbox=8,  hbox=4, cmap="gray",xcur=2.0);
+    [dzz[:,:,n] imagk.(Qt)[:,:,n] Zo[:,:,n] imagk.(Qo)[:,:,n] imagk.(Qa)[:,:,n] (dzz .- Zo)[:,:,n] (dzz .- imagk.(Qo))[:,:,n] (dzz .- imagk.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
+PyPlot.savefig(joinpath(homedir(),"julia/compare_z.jpg"));
 
 file_path = joinpath(dev_dir,"files/linear_5d")
 
