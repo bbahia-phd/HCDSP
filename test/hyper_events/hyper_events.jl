@@ -3,17 +3,17 @@ pwd()
 using Distributed
 addprocs(5)
 
-cd(joinpath(homedir(),"projects/HCDSP/test/hyper_events"))
+cd(joinpath(homedir(),"julia/HCDSP/test/hyper_events"))
 
 @everywhere using Pkg
-@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
+@everywhere Pkg.activate(joinpath(homedir(),"julia/HCDSP"))
 Pkg.status()
 
 @everywhere using Revise
 @everywhere using FFTW
 @everywhere using HCDSP, LinearAlgebra, Random
 
-using SeisMain, SeisPlot, SeisProcessing
+using SeisMain, SeisPlot
 using PyPlot
 
 # same as collect(ot:dt:tmax) or collect(range(start::T,stop::T,step::T=))

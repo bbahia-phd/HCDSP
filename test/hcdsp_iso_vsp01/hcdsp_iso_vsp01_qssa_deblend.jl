@@ -160,7 +160,6 @@ m2 = bAdj(d2);
 
 @test dot(d1,d2) ≈ dot(m1,m2)
 =#
-                                      
 
 # Inverse crime: observed data
 oq = quaternion(Float64.(ozx),Float64.(ozy),Float64.(ozz));
@@ -244,5 +243,3 @@ tmp = [ozz[:,:,j] db[:,:,j] pgd_fkt[:,:,j]];
 a = maximum(tmp[:])*0.2;
 
 SeisPlotTX(tmp,pclip=90,vmin=-a,vmax=a,cmap="gray")
-
-
