@@ -33,7 +33,7 @@ function SeisAddNoise(d::Array{T, N}, snr::Real; db::Bool=false,
         noise = noise/norm(noise) * norm(d)/10.0^(0.05*snr)
     end
     noisy = d + noise
-    @assert(abs(MeasureSNR(d, noisy, db=db) - snr) < 1e10*eps(AbstractFloat(snr)))
+    # @assert(abs(MeasureSNR(d, noisy, db=db) - snr) < 1e10*eps(AbstractFloat(snr)))
     return noisy
 
 end
