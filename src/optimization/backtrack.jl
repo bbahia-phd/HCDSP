@@ -28,7 +28,7 @@ Despite the quaternion numbers, the step-sizes are obtained as real numbers (sim
 function backtrack(iter, state; 
                    α_0  = one( eltype(state.γ) ),
                    σ_1  = convert.( typeof(α_0), 1e-4 ),
-                   proj = nothing,
+                   proj = false,
                      W  = nothing,
                    max_iter = 1000,
                    verbose::Bool=false)
@@ -56,17 +56,17 @@ function backtrack(iter, state;
     end
 
     # update solution
-    if proj == nothing
-        state.x .+= aux.α_c .* state.g;
+    if proj == false
+        state.x .= state.x .+ aux.α_c .* state.g;
     else
-        state.x .+= aux.α_c .* (proj-state.x);
+        state.x .= state.x .+ aux.α_c .* (state.z-state.x);
     end
 end
 
 # constructor
 function backtrack_iterable(iter, state, out;
                             W = nothing,
-                            proj = nothing,
+                            proj = false,
                             α_0 = one( real( eltype( state.x  ) ) ),
                             σ_1 = convert.( typeof(α_0), 1e-4 ),
                             γ_1 = convert.( typeof(α_0), 0.1 ),
@@ -74,7 +74,7 @@ function backtrack_iterable(iter, state, out;
                             max_iter = 1000,
                             order=3)
 
-    if proj == nothing
+    if proj == false
         # Function handle for LS misfit as function of step-size α
         ϕ = get_ϕ(iter.L, iter.d, state.x, state.g, out; W = W)
         return BTIterable(ϕ,
@@ -88,9 +88,9 @@ function backtrack_iterable(iter, state, out;
                           order)
     else
         # Function handle for LS misfit as function of step-size α
-        ϕ = get_ϕ(iter.L, iter.d, state.x, (proj-state.x), out; W = W)
+        ϕ = get_ϕ(iter.L, iter.d, state.x, (state.z-state.x), out; W = W)
         return BTIterable(ϕ,
-                           real(dot(state.g,(proj-state.x))),
+                           real(dot(state.g,(state.z-state.x))),
                            state.δ_new,
                            α_0,
                            σ_1,
@@ -107,13 +107,14 @@ A function handle for a quadratic cost function
 function get_ϕ( L, d, x, g, xnew ;
                 r = zero(d),
                 W = nothing )
-    ϕ = if W == nothing
+    ϕ = if W === nothing
         function _ϕ(α)
             # Step towards g
             xnew .= x .+ α .* g;
 
             # Residual
-            r .= d .- L(xnew);
+            L(r,xnew);
+            r .= d .- r;
 
             # Sum of squares
             return real(dot(r,r))
@@ -125,7 +126,8 @@ function get_ϕ( L, d, x, g, xnew ;
             xnew .= x .+ α .* g;
 
             # Residual
-            r .= W .* (d .- L(xnew));
+            L(r,xnew);
+            r .= W .* (d .- r);
 
             # Sum of squares
             return real(dot(r,r))
@@ -189,14 +191,14 @@ function iterate(iter::BTIterable{F,T}) where {F,T}
 
         # store and halve
         α_p = α_c
-        α_c = α_p .* 0.5
+        α_c = α_p * 0.5
 
         # eval cost func with halved step-size
         ϕx_1 = iter.ϕ(α_c)
     end
 
     # slope for sufficient decrease condition
-    dϕ = iter.ϕ_0 + α_c .* iter.σ_1 * iter.dϕ_0
+    dϕ = iter.ϕ_0 + α_c * iter.σ_1 * iter.dϕ_0
 
     # define state
     state = BTState{T}(α_c, α_p, ϕx_1, ϕx_1, dϕ, 0)
@@ -235,7 +237,7 @@ function iterate(iter::BTIterable{F,T}, state::BTState{T}) where {F,T}
     state.α_p = state.α_c
 
     # Avoid too small/big corrections (see package NaNMath.jl)
-        α_tmp = NaNMath.min(α_tmp, state.α_c * iter.γ_2)
+    α_tmp = NaNMath.min(α_tmp, state.α_c * iter.γ_2)
     state.α_c = NaNMath.max(α_tmp, state.α_c * iter.γ_1)
 
     # candidate misfit

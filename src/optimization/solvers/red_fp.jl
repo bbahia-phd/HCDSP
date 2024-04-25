@@ -49,13 +49,13 @@ function redfp_iterable(L, Lt, d, x, μ, proj, args...;
                         kwargs...)
     # Define rhs
     aux = Lt(d);
-    rhs(δ) = aux .+ μ .* δ;
+    rhs(δ) = aux .- μ .* δ;
 
     # Define Op
-    LOp(δ) = Lt(L(δ)) .+ μ .* δ;
+    LOp(δ) = Lt(L(δ)) .- μ .* δ; 
 
     # Define cost function
-    cost_f(δ,δ_d) = 0.5 * real(norm(d .- L(δ),2))^2 #+ 0.5 * μ * real(dot(δ,(δ - δ_d)))
+    cost_f(δ,δ_d) = 0.5 * real(norm(d .- L(δ),2))^2 + 0.5 * μ * real(dot(δ,(δ - δ_d)))
     return REDFPIterable(LOp, rhs, cost_f, proj, args..., x, ideal, int_it, ε)
 end
 
@@ -87,17 +87,15 @@ function iterate(iter::REDFPIterable{Op, Rhs, F, Tp ,P, Tx, T}, state::REDFPStat
     # counter
     state.it += 1
     
-    # projection
+    # projection (patched denoiser)
     tmp = iter.proj(state,iter.args)
 
     # rhs
-    tmp .= iter.rhs(tmp);
+    rhs = iter.rhs(tmp);
 
     # model update
     state.xo .= state.x
-    state.x,_ = cg!(iter.LOp,
-                    tmp,
-                    zero(tmp),
+    state.x,_ = cg!(iter.LOp, rhs, zero(rhs),
                     max_iter = iter.int_it,
                     verbose=false,
                     tol=T(1e-16))

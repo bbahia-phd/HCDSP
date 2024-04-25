@@ -32,9 +32,9 @@ mutable struct RIHTState{Td, Tx}
     # Arrays
     x::Tx
     r::Td
+    q::Td
     g::Tx
     W::Td
-
     
     # Iteration related
     ε::Number   #tol::Number
@@ -64,22 +64,27 @@ function iterate(iter::RIHTIterable{Fwd, Adj, Tt, Tw, P, Td, Tx, T}) where {Fwd,
     threshold!(x,iter.thresh[it])
 
     # Residual and gradient
-    r = iter.d .- iter.L(x);
+    r = similar(iter.d);
+    iter.L(r,x);
+    r .= iter.d .- r;
 
     # Weights
     W = zero(r);
     iter.update_weights(W,r,iter.args, it)
 
     # Gradient
-    g = iter.Lt(W .* r)
+    g = similar(x);
+    iter.Lt(W .* r,g);
+    # g = iter.Lt(iter.d, W .* r)
     γ = T( dot(g,g) )
     
     # Useful quantities
+    q = similar(r);
     δ_old = T( dot(r,r) );
     δ_new = copy(δ_old);
     
     # define state
-    state = RIHTState{Td,Tx}(x, r, g, W, iter.ε, γ, δ_new, δ_old, it)
+    state = RIHTState{Td,Tx}(x, r, q, g, W, iter.ε, γ, δ_new, δ_old, it)
 
     return state,state
 end
@@ -91,10 +96,11 @@ function iterate(iter::RIHTIterable{Fwd, Adj, Tt, Tw, P, Td, Tx, T}, state::RIHT
     state.it += 1
 
     # auxiliary variable
-    q = sqrt.(state.W) .* iter.L(state.g);
+    iter.L(state.q,state.g);
+    state.q .= sqrt.(state.W) .* state.q;
 
     # step-size
-    α = T( state.γ / (dot(q,q) + 1e-13) )    
+    α = T( state.γ / (dot(state.q,state.q) + 1e-13) )    
 
     # backtrack
     backtrack(iter, state; α_0 = α, W = state.W)
@@ -103,7 +109,8 @@ function iterate(iter::RIHTIterable{Fwd, Adj, Tt, Tw, P, Td, Tx, T}, state::RIHT
     threshold!(state.x, iter.thresh[state.it])
     
     # residual
-    state.r .= iter.d .- iter.L(state.x)
+    iter.L(state.r,state.x);
+    state.r .= iter.d .- state.r;
     state.δ_old = T( state.δ_new )
     state.δ_new = T( dot(state.r, state.r) )
 
@@ -111,7 +118,7 @@ function iterate(iter::RIHTIterable{Fwd, Adj, Tt, Tw, P, Td, Tx, T}, state::RIHT
     iter.update_weights(state.W,state.r,iter.args,state.it)
     
     # gradient
-    state.g .= iter.Lt(state.W .* state.r);
+    iter.Lt(state.W .* state.r,state.g);
     state.γ = T( dot(state.g, state.g) )
    
     # return 

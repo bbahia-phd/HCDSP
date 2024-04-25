@@ -100,6 +100,7 @@ function iterate(iter::REDADMMIterable{Cf, Gf, Op, Tp, P, Tx, T}, state::REDADMM
     state.z  .= state.x;
     state.zs .= state.v - state.u;
 
+    # repelace by CG call 
     for i in 1:iter.it1
         g .= iter.get_grad(state.z,state.zs);
         e .= iter.Op(g);

@@ -30,10 +30,11 @@ end
 # State
 mutable struct PGDLSState{Td, Tx, T <: Number}
     # Arrays
+    xo::Tx # previous solution
     x::Tx  # current solution
-    xo::Tx # old solution
+    z::Tx  # current projected solution
     
-    r::Td # has to match data space
+    r::Td  # has to match data space
     g::Tx # has to match solution space
 
     # Iteration related
@@ -62,23 +63,31 @@ function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}) where {Fwd,Adj,Tp,P,
     it = 0;
 
     # initial solution
+    z  = copy(iter.x0)
     x  = copy(iter.x0)
     xo = copy(iter.x0)
 
-    # residuals
-    r = iter.d .- iter.L(x)
+    # data and residuals
+    r = similar(iter.d);
+    
+    # model data and residuals
+    iter.L(r,x);
+    r .= iter.d .- r;
+    
+    # associated quantities
     δ_new = real(dot(r,r));
     δ_old = zero(δ_new);
 
     # Gradient
-    g = iter.Lt(r)
+    g = similar(x);
+    iter.Lt(r,g);
     γ = real(dot(g,g))
 
     # Initial Quality
     snr = prediction_quality(x,iter.xi);
     
     # Define state
-    state = PGDLSState{Td,Tx,T}(x, xo, r, g, iter.ε, snr, γ, δ_new, δ_old, it)
+    state = PGDLSState{Td,Tx,T}(xo, x, z, r, g, iter.ε, snr, γ, δ_new, δ_old, it)
 
     return state,state
 end
@@ -91,28 +100,29 @@ function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}, state::PGDLSState{Td
     
     # model update
     state.xo .= state.x
-    state.x .+= iter.α .* state.g
+    state.z .= state.x .+ iter.α .* state.g
 
     # projection
-    tmp = iter.proj(state,iter.args)
+    iter.proj(state,iter.args)
 
     # backtrack
-    backtrack(iter,state; proj = tmp)
+    backtrack(iter,state; proj = true)
 
     # snr
-    if iter.xi != nothing;
-        state.snr = prediction_quality(state.x,iter.xi);
+    if iter.xi !== nothing;
+        state.snr = prediction_quality(state.z,iter.xi);
     end
 
     # residual update
-    state.r .= iter.d .- iter.L(state.x)
+    iter.L(state.r,state.x);
+    state.r .= iter.d .- state.r;
 
     # misfit
     state.δ_old = state.δ_new
     state.δ_new = real(dot(state.r, state.r))
 
     # gradient
-    state.g = iter.Lt(state.r);
+    iter.Lt(state.r,state.g);
     state.γ = real(dot(state.g, state.g))
     
     # return 
@@ -120,7 +130,7 @@ function iterate(iter::PGDLSIterable{Fwd,Adj,Tp,P,Td,Tx,T}, state::PGDLSState{Td
 end
 
 # These macros will help with a single `iterate` overload
-@inline converged(state::PGDLSState)     = abs((state.δ_new-state.δ_old)/state.δ_old) <=    state.ε
+@inline converged(state::PGDLSState)     = abs((state.δ_new-state.δ_old)/state.δ_old) <= state.ε
 @inline converged_res(state::PGDLSState) = state.δ_new < state.ε^2 * state.δ0
 @inline converged_mod(state::PGDLSState) = state.it > 0 ? norm(state.xo .- state.x,2)^2/norm(state.xo,2)^2 < state.ε : false;
 
