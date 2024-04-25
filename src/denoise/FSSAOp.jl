@@ -275,17 +275,17 @@ function fast_qssa_qr(IN::AbstractArray{Quaternion{T}},k) where T
     Ω = Quaternion.(rand(prod(K),k),rand(prod(K),k),rand(prod(K),k),rand(prod(K),k));
 
     # projection
-    P = zerosq((prod(L),k))
+    P = zeros(eltype(IN),(prod(L),k))
     for i = 1:k
         P[:,i] .= qmbh_multiply(IN,Ω[:,i],flag="fwd")
     end
 
     # Quaternion QR
-    Qr,_ = qr(P)
+    Qr,_ = qqr(P)
 
     for i in 1:k
 
-        q = copy(Qr[:,i]);
+        q = @view Qr[:,i];
 
         t = qmbh_multiply(IN,q,flag="adj");
 
@@ -294,7 +294,7 @@ function fast_qssa_qr(IN::AbstractArray{Quaternion{T}},k) where T
 
     count = count_copy_times(vec(dims))
 
-    OUT = OUT ./ count;
+    OUT .= OUT ./ count;
 
     return OUT
 
