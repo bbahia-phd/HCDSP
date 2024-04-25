@@ -9,11 +9,11 @@ const qk = normalize(quater(0,0,1));
 const μ0 = quater(1,1,1) / sqrt(3)
 
 ## Multiple dispatch ##
-fft(IN,μ,side,dims=1:ndims(IN))  = qfft(IN,μ,side,dims)
-fft(IN::AbstractArray{Quaternion{T}},dims=1:ndims(IN)) where T = qfft(IN,qi,"left",dims)
+fft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T},side,dims=1:ndims(IN)) where T <: Real = qfft(IN,convert(T,μ),side,dims)
+fft(IN::AbstractArray{Quaternion{T}},dims=1:ndims(IN)) where T = qfft(IN,convert(T,qi),"left",dims)
 
-ifft(IN,μ,side,dims=1:ndims(IN)) = iqfft(IN,μ,side,dims)
-ifft(IN::AbstractArray{Quaternion{T}},dims=1:ndims(IN)) where T = iqfft(IN,qi,"left",dims)
+ifft(IN::AbstractArray{Quaternion{T}},μ::Quaternion{T},side,dims=1:ndims(IN)) where T <: Real = iqfft(IN,convert(T,μ),side,dims)
+ifft(IN::AbstractArray{Quaternion{T}},dims=1:ndims(IN)) where T = iqfft(IN,convert(T,qi),"left",dims)
 
 function get_side(side::String)
     return side == "left" ? 1 : -1
