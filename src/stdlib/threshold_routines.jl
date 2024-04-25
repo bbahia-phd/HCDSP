@@ -108,7 +108,7 @@ end
 """
 Define threshold schedule given upper and lower bounds.
 """ 
-function _schedule(Up::Real,Low::Real,K::Int,flag::String) where {T,N}
+function _schedule(Up::Real,Low::Real,K::Int,flag::String)
 
     # output vector of coefficients
     out = Array{eltype(Up)}(undef,K)
@@ -130,7 +130,7 @@ function _schedule(Up::Real,Low::Real,K::Int,flag::String) where {T,N}
 
         elseif flag == "abma"
 
-        function _abma(k::Int,K::Int,Up::Real,Low::Real)
+        function _abma(k::Int,K::Int,Up::Real)
             return Up*((K-k)/K)^2
         end
         _abma
