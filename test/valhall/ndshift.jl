@@ -1,4 +1,4 @@
-function ndshift(IN::AbstractArray{T}, δT::Matrix{T}, dt::Real) where {T}
+function ndshift(IN::AbstractArray{T}, δT::AbstractArray{T}, dt::Real) where {T}
 
     # Shift traces in IN by TT
     # Padding
