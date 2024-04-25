@@ -16,6 +16,7 @@ export fwdPatchOp,
     interp_ks3d_fwd,
     interp_ks3d_adj,
     QBlendOp,
+    QBlendOp2,
     SeisBlendOp
 
 include("PatchOp.jl")

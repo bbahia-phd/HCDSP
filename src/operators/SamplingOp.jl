@@ -19,7 +19,7 @@ function Sampling1D(IN::Vector{T}; ε::Real = 1e-10) where {T <: Number}
 
     @inbounds for i in eachindex(IN)
 	σ = sqrt( abs( IN[i] )  )
-        σ > ε ? push!( Γ, i ) : nothing;
+        σ > ε ? Base.push!( Γ, i ) : nothing;
     end
     
     # Define the forward sampling operator
@@ -59,12 +59,12 @@ function Sampling2D(IN::AbstractArray{T,2}; ε::Real = 1e-10) where {T <: Number
 
     @inbounds for i in all_indx
         σ = sum( abs.(IN[:,i]).^2   )
-        σ > ε ? push!( Γ, i ) : nothing;
+        σ > ε ? Base.push!( Γ, i ) : nothing;
     end
 
     # Define the forward sampling operator
     function fwdSampler(X,IND)
-        return OUT = X[:, [i for i in IND]]
+        return X[:, [i for i in IND]]
     end
     fwd(X) = fwdSampler(X,Γ)
     
