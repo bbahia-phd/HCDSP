@@ -19,6 +19,7 @@ include("./noise/noise.jl")
 include("./denoise/denoise.jl")
 include("./operators/operators.jl")
 include("./stdlib/stdlib.jl")
+include("./plots/SeisPlot.jl")
 
 # include IterativeMethods
 include("./optimization/iterables.jl")

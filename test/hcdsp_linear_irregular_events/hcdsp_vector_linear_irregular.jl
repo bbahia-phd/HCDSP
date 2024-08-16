@@ -170,7 +170,7 @@ jmx_obs = reshape(jmx,:,1)[indx2];
 jmy_obs = reshape(jmy,:,1)[indx2];
 
 # create the arrays containing the regular and irregular grids.
-# These are input to the interpolator_kaiser_sinc_3d_freq
+# These are input to Fernanda's interpolator_kaiser_sinc_3d_freq
 # Regular grid is 3D
 h = zeros(nx,ny,2);
 h[:,:,1] .= gmx;

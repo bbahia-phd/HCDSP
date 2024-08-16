@@ -1,3 +1,16 @@
+# Change this path to your HCDSP path
+cd("/lustre03/vol0/4638ns/projects/HCDSP/")
+pwd()
+
+using Distributed
+
+using Pkg
+
+# Change this path to your HCDSP path
+# You will need to  load dependencies by using Pkg.instantiate().
+# This step might need some troubleshooting, please let me know.
+Pkg.activate("/lustre03/vol0/4638ns/projects/HCDSP/")
+
 using Revise
 using HCDSP
 using Images, TestImages, Test
@@ -28,7 +41,7 @@ Qi = iqfft(Qf,ax,side);
 
 # multidimensional qft
 Q1 = qfft(Q,ax,side,1:2);
-Q2 = qfft(Q,ax,side)
+Q2 = qfft(Q,ax,side);
 
 @show norm(Q1-Q2)^2
 @test isapprox(Q1,Q2)

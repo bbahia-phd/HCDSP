@@ -1,3 +1,5 @@
+
+# Change this path to your HCDSP path
 cd("/lustre03/vol0/4638ns/projects/HCDSP/")
 pwd()
 
@@ -5,23 +7,27 @@ using Distributed
 addprocs(20)
 
 @everywhere using Pkg
-#@everywhere Pkg.activate(joinpath(homedir(),"projects/HCDSP"))
-#@everywhere Pkg.activate(joinpath(dev_dir,"HCDSP"))
+
+# Change this path to your HCDSP path
+# You will need to  load dependencies by using Pkg.instantiate().
+# This step might need some troubleshooting, please let me know.
 @everywhere Pkg.activate("/lustre03/vol0/4638ns/projects/HCDSP/")
 
-Pkg.status()
-
-@everywhere using Revise
-@everywhere using LinearAlgebra
+@everywhere using Revise            # To avoid reinitializing julia
+@everywhere using LinearAlgebra     
 @everywhere using FFTW
 @everywhere using Random
 
 @everywhere using HCDSP
 
+# Note that I am not using SeisPlot.jl because there is a dependency conflict.
+# Not sure what has changed, but you might just use SeisMakie.jl.
+# Still, I copied all SeisPlot.jl functions into HCDSP so that you can just use SeisPlotTX out the box here.
 using PyPlot
 using SeisMain
 using HDF5
 
+# Creating pure mode synthetics
 function get_mode_data(;nx1=40,nx2=40,nx3=1,nx4=1)
 
     params_zx = (ot=0.0, dt=0.004, nt=100, ox1=0.0, dx1=10.0,
@@ -49,6 +55,7 @@ function get_mode_data(;nx1=40,nx2=40,nx3=1,nx4=1)
 
 end
 
+# Unmixing components (assumes known "angles of incidence". Perhaps a better example would be good too.)
 function unmix(p,sv,sh)
 
     A = inv([0.75 0.15 0.1; 0.15 0.75 0.1; 0.1 0.15 0.75]);
@@ -64,6 +71,7 @@ function unmix(p,sv,sh)
     return o1,o2,o3
 end
 
+# Mixing components (assumes known "angles of incidence". Perhaps a better example would be good too.)
 function mix(p,sv,sh)
 
     o1,o2,o3 = similar(p),similar(p),similar(p)
@@ -80,10 +88,13 @@ end
 p,sv,sh = get_mode_data(nx1=20,nx2=20,nx3=20,nx4=20);
 
 # mixed observed displacements
+# might be considered a mid-to-far offset assumption (nears would have close-to-vertical rays)
 dzz,dzy,dzx = mix(p,sv,sh);
 
+# fx-process setup
 fmin = 0.0; fmax = 60.0; dt = 0.004;
 @everywhere α = 0.5;
+
 # Define operator to act on a frequency slice d
 @everywhere imp_ssa(d,k)   = HCDSP.imputation_op(d,HCDSP.fast_ssa_lanc,  (k); iter=100, α = α)
 @everywhere imp_qssa(d,k)  = HCDSP.imputation_op(d,HCDSP.fast_qssa_lanc, (k); iter=100, α = α)
@@ -110,18 +121,19 @@ Qt .= decimate_traces(Qt,perc);
 k  = 10;
 ka = 12;
 
-# Call fx_process with Q imputation
+# Call pmap fx_process with Q imputation (runs on both sides of the spectra)
 Qo = pmap_fx_process(Qt,dt,fmin,fmax,imp_qssa,(k));
 qx = quality(imagi.(Qo),dzx)
 qy = quality(imagj.(Qo),dzy)
 qz = quality(imagk.(Qo),dzz)
 
+# Call pmap fx_process with Q imputation (runs on both sides of the spectra)
 Qa = pmap_fx_process(Qt,dt,fmin,fmax,imp_aqssa,(ka));
 aqx = quality(imagi.(Qa),dzx)
 aqy = quality(imagj.(Qa),dzy)
 aqz = quality(imagk.(Qa),dzz)
 
-# Component-wise processing
+# Component-wise processing (runs on single side of the spectra)
 Xo = pmap_fx_process(imagi.(Qt),dt,fmin,fmax,imp_ssa,(k));
 Yo = pmap_fx_process(imagj.(Qt),dt,fmin,fmax,imp_ssa,(k));
 Zo = pmap_fx_process(imagk.(Qt),dt,fmin,fmax,imp_ssa,(k));
@@ -136,70 +148,16 @@ clf();close("all")
 SeisPlotTX(
     [dzx[:,:,n] imagi.(Qt)[:,:,n] Xo[:,:,n] imagi.(Qo)[:,:,n] imagi.(Qa)[:,:,n] (dzx .- Xo)[:,:,n] (dzx .- imagi.(Qo))[:,:,n] (dzx .- imagi.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
-PyPlot.savefig(joinpath(homedir(),"julia/compare_x.jpg"));
+# PyPlot.savefig(joinpath(homedir(),"julia/compare_x.jpg"));
 
 clf();close("all")
 SeisPlotTX(
     [dzy[:,:,n] imagj.(Qt)[:,:,n] Yo[:,:,n] imagj.(Qo)[:,:,n] imagj.(Qa)[:,:,n] (dzy .- Yo)[:,:,n] (dzy .- imagj.(Qo))[:,:,n] (dzy .- imagj.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
-PyPlot.savefig(joinpath(homedir(),"julia/compare_y.jpg"));
+# PyPlot.savefig(joinpath(homedir(),"julia/compare_y.jpg"));
 
 clf();close("all")
 SeisPlotTX(
     [dzz[:,:,n] imagk.(Qt)[:,:,n] Zo[:,:,n] imagk.(Qo)[:,:,n] imagk.(Qa)[:,:,n] (dzz .- Zo)[:,:,n] (dzz .- imagk.(Qo))[:,:,n] (dzz .- imagk.(Qa))[:,:,n]], wbox=20,  hbox=4, cmap="gray",xcur=2.0);
 gcf()
-PyPlot.savefig(joinpath(homedir(),"julia/compare_z.jpg"));
-
-file_path = joinpath(dev_dir,"files/linear_5d")
-
-## Write clean data to file
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zz.bin")
-read_write(file,"w";n=size(dzz),input=dzz,T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zy.bin")
-read_write(file,"w";n=size(dzy),input=dzy,T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_zx.bin")
-read_write(file,"w";n=size(dzx),input=dzx,T=Float64)
-
-## Write Input data to file
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qt),T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qt),T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_noisy_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qt),T=Float64)
-
-## Write SSA output to file
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=Zo,T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=Yo,T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_ssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=Xo,T=Float64)
-
-## Write QSSA output to file
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qo),T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qo),T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_qssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qo),T=Float64)
-
-## Write AQSSA output to file
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zz.bin")
-read_write(file,"w";n=size(dzz),input=imagk.(Qa),T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zy.bin")
-read_write(file,"w";n=size(dzy),input=imagj.(Qa),T=Float64)
-
-file = joinpath(file_path,"hcdsp_recon_3d3c_linear_events_aqssa_zx.bin")
-read_write(file,"w";n=size(dzx),input=imagi.(Qa),T=Float64)
-
-
+# PyPlot.savefig(joinpath(homedir(),"julia/compare_z.jpg"));
